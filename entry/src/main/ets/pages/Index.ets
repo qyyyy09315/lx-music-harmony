@@ -2,6 +2,8 @@ import { AudioPlayerService } from '../services/AudioPlayerService';
 import { StorageService } from '../services/StorageService';
 import { SourceManagerService } from '../services/SourceManagerService';
 import { FloatLyricService } from '../services/FloatLyricService';
+import { SyncService, SyncConnectionState, SyncReport } from '../services/SyncService';
+import { ThemeService, ThemeMode, ThemeColorSet, ThemePreset } from '../services/ThemeService';
 import { MusicItem, PlayMode, PlayState, UserSourceScriptInfo } from '../model/MusicModel';
 import { MusicListItem } from '../view/MusicListItem';
 import { PlayDetailModal } from '../view/PlayDetailModal';
@@ -16,7 +18,12 @@ struct Index {
   @State totalTime: number = 0;
   @State playMode: PlayMode = PlayMode.LIST_LOOP;
 
-  // 发现/推荐歌曲列表
+  // 主题与色彩
+  @State themeColors: ThemeColorSet = ThemeService.getInstance().getColors();
+  @State currentThemeMode: ThemeMode = ThemeMode.LIGHT;
+  @State isShowThemeModal: boolean = false;
+
+  // 推荐歌曲列表
   @State recommendList: MusicItem[] = [
     {
       id: 'song_demo_1',
@@ -69,10 +76,20 @@ struct Index {
   @State isFloatLyricOn: boolean = false;
   @State floatingLyricText: string = '洛雪音乐 - 听你所想';
 
+  // 多端同步相关状态
+  @State isShowSyncModal: boolean = false;
+  @State syncHost: string = 'http://127.0.0.1';
+  @State syncPort: number = 9527;
+  @State syncKey: string = '';
+  @State syncState: SyncConnectionState = SyncConnectionState.DISCONNECTED;
+  @State syncReportText: string = '未连接';
+
   private playerService: AudioPlayerService = AudioPlayerService.getInstance();
   private storageService: StorageService = StorageService.getInstance();
   private sourceService: SourceManagerService = SourceManagerService.getInstance();
   private floatLyricService: FloatLyricService = FloatLyricService.getInstance();
+  private syncService: SyncService = SyncService.getInstance();
+  private themeService: ThemeService = ThemeService.getInstance();
 
   aboutToAppear() {
     this.storageService.init(getContext(this));
@@ -98,6 +115,20 @@ struct Index {
     this.floatLyricService.onLyricChange((text: string) => {
       this.floatingLyricText = text;
     });
+
+    this.syncService.onStateChange((state: SyncConnectionState, report: SyncReport) => {
+      this.syncState = state;
+      this.syncReportText = report.statusMessage;
+    });
+
+    this.themeService.onThemeChange((colors: ThemeColorSet) => {
+      this.themeColors = colors;
+    });
+
+    const cfg = this.syncService.getConfig();
+    this.syncHost = cfg.host;
+    this.syncPort = cfg.port;
+    this.syncKey = cfg.authKey;
 
     this.loadCollections();
     this.loadSources();
@@ -133,25 +164,40 @@ struct Index {
           Text('洛雪音乐')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#1F2329')
+            .fontColor(this.themeColors.textPrimary)
 
           Blank()
 
-          Text(this.activeSource ? this.activeSource.name : '内置源')
-            .fontSize(11)
-            .fontColor('#07C160')
-            .backgroundColor('#E8F8F0')
-            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-            .borderRadius(12)
+          Row({ space: 8 }) {
+            // 主题切换入口
+            Button({ type: ButtonType.Circle }) {
+              Text('🎨')
+                .fontSize(14)
+            }
+            .width(32)
+            .height(32)
+            .backgroundColor(this.themeColors.cardBackground)
             .onClick(() => {
-              this.isShowSourceModal = true;
+              this.isShowThemeModal = true;
             })
+
+            // 当前音源入口
+            Text(this.activeSource ? this.activeSource.name : '内置源')
+              .fontSize(11)
+              .fontColor(this.themeColors.primary)
+              .backgroundColor(this.themeColors.primaryLight)
+              .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+              .borderRadius(12)
+              .onClick(() => {
+                this.isShowSourceModal = true;
+              })
+          }
         }
         .width('100%')
         .height(56)
         .padding({ left: 16, right: 16 })
         .alignItems(VerticalAlign.Center)
-        .backgroundColor('#FFFFFF')
+        .backgroundColor(this.themeColors.background)
 
         // 全局悬浮歌词胶囊条 (开启悬浮歌词时显示)
         if (this.isFloatLyricOn) {
@@ -161,7 +207,7 @@ struct Index {
             Text(this.floatingLyricText)
               .fontSize(13)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#07C160')
+              .fontColor(this.themeColors.primary)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
@@ -169,9 +215,8 @@ struct Index {
           .height(34)
           .margin({ top: 4, bottom: 4 })
           .padding({ left: 14, right: 14 })
-          .backgroundColor('#F0FBF5')
+          .backgroundColor(this.themeColors.primaryLight)
           .borderRadius(17)
-          .border({ width: 1, color: '#D2F2E1' })
           .justifyContent(FlexAlign.Center)
         }
 
@@ -184,13 +229,14 @@ struct Index {
                 Text('今日推荐')
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
+                  .fontColor(this.themeColors.textPrimary)
 
                 Blank()
 
                 Button('播放全部')
                   .fontSize(12)
-                  .fontColor('#07C160')
-                  .backgroundColor('#E8F8F0')
+                  .fontColor(this.themeColors.primary)
+                  .backgroundColor(this.themeColors.primaryLight)
                   .height(28)
                   .onClick(() => {
                     this.playerService.setPlayList(this.recommendList, 0);
@@ -214,10 +260,11 @@ struct Index {
               }
               .layoutWeight(1)
               .width('100%')
-              .divider({ strokeWidth: 0.5, color: '#F2F3F5', startMargin: 72 })
+              .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
             }
             .width('100%')
             .height('100%')
+            .backgroundColor(this.themeColors.background)
           }
           .tabBar('发现')
 
@@ -228,12 +275,13 @@ struct Index {
                 Text('我的收藏')
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
+                  .fontColor(this.themeColors.textPrimary)
 
                 Blank()
 
                 Text(`${this.myCollectionList.length} 首`)
                   .fontSize(13)
-                  .fontColor('#8F959E')
+                  .fontColor(this.themeColors.textSecondary)
               }
               .width('100%')
               .padding({ left: 16, right: 16, top: 16, bottom: 12 })
@@ -245,7 +293,7 @@ struct Index {
                     .margin({ top: 60 })
                   Text('暂无收藏歌曲')
                     .fontSize(14)
-                    .fontColor('#8F959E')
+                    .fontColor(this.themeColors.textSecondary)
                 }
                 .width('100%')
                 .layoutWeight(1)
@@ -269,6 +317,7 @@ struct Index {
             }
             .width('100%')
             .height('100%')
+            .backgroundColor(this.themeColors.background)
           }
           .tabBar('我的')
 
@@ -288,7 +337,7 @@ struct Index {
 
                 Button('搜索')
                   .fontSize(14)
-                  .backgroundColor('#07C160')
+                  .backgroundColor(this.themeColors.primary)
                   .fontColor(Color.White)
                   .height(38)
                   .onClick(() => {
@@ -303,11 +352,11 @@ struct Index {
                   LoadingProgress()
                     .width(40)
                     .height(40)
-                    .color('#07C160')
+                    .color(this.themeColors.primary)
                     .margin({ top: 80 })
                   Text('正在跨源搜索高品质音频...')
                     .fontSize(13)
-                    .fontColor('#8F959E')
+                    .fontColor(this.themeColors.textSecondary)
                 }
                 .width('100%')
                 .layoutWeight(1)
@@ -327,7 +376,7 @@ struct Index {
                 }
                 .layoutWeight(1)
                 .width('100%')
-                .divider({ strokeWidth: 0.5, color: '#F2F3F5', startMargin: 72 })
+                .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
               } else {
                 Column({ space: 8 }) {
                   Text('🔍')
@@ -335,7 +384,7 @@ struct Index {
                     .margin({ top: 60 })
                   Text('输入歌名即刻开启全网多源检索')
                     .fontSize(14)
-                    .fontColor('#8F959E')
+                    .fontColor(this.themeColors.textSecondary)
                 }
                 .width('100%')
                 .layoutWeight(1)
@@ -343,6 +392,7 @@ struct Index {
             }
             .width('100%')
             .height('100%')
+            .backgroundColor(this.themeColors.background)
           }
           .tabBar('搜索')
 
@@ -353,19 +403,45 @@ struct Index {
                 ListItem() {
                   Row() {
                     Column({ space: 4 }) {
+                      Text('主题与配色方案')
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(this.themeColors.textPrimary)
+                      Text(`当前主色：${this.themeColors.primary}`)
+                        .fontSize(12)
+                        .fontColor(this.themeColors.textSecondary)
+                    }
+                    .alignItems(HorizontalAlign.Start)
+
+                    Blank()
+                    Text('调整 >')
+                      .fontSize(13)
+                      .fontColor(this.themeColors.primary)
+                  }
+                  .width('100%')
+                  .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                  .onClick(() => {
+                    this.isShowThemeModal = true;
+                  })
+                }
+
+                ListItem() {
+                  Row() {
+                    Column({ space: 4 }) {
                       Text('音源脚本设置 (User API)')
                         .fontSize(15)
                         .fontWeight(FontWeight.Medium)
+                        .fontColor(this.themeColors.textPrimary)
                       Text(this.activeSource ? `当前已激活: ${this.activeSource.name}` : '未导入')
                         .fontSize(12)
-                        .fontColor('#8F959E')
+                        .fontColor(this.themeColors.textSecondary)
                     }
                     .alignItems(HorizontalAlign.Start)
 
                     Blank()
                     Text('管理 >')
                       .fontSize(13)
-                      .fontColor('#07C160')
+                      .fontColor(this.themeColors.primary)
                   }
                   .width('100%')
                   .padding({ left: 16, right: 16, top: 16, bottom: 16 })
@@ -380,15 +456,16 @@ struct Index {
                       Text('桌面/全局悬浮歌词')
                         .fontSize(15)
                         .fontWeight(FontWeight.Medium)
+                        .fontColor(this.themeColors.textPrimary)
                       Text('在所有应用顶部实时显示歌词')
                         .fontSize(12)
-                        .fontColor('#8F959E')
+                        .fontColor(this.themeColors.textSecondary)
                     }
                     .alignItems(HorizontalAlign.Start)
 
                     Blank()
                     Toggle({ type: ToggleType.Switch, isOn: this.isFloatLyricOn })
-                      .selectedColor('#07C160')
+                      .selectedColor(this.themeColors.primary)
                       .onChange((isOn: boolean) => {
                         this.isFloatLyricOn = isOn;
                         this.floatLyricService.toggleFloatLyric(isOn);
@@ -400,35 +477,49 @@ struct Index {
 
                 ListItem() {
                   Row() {
-                    Text('多端同步 (Sync Server)')
-                      .fontSize(15)
+                    Column({ space: 4 }) {
+                      Text('多端数据同步 (Sync Server)')
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(this.themeColors.textPrimary)
+                      Text(`状态: ${this.syncReportText}`)
+                        .fontSize(12)
+                        .fontColor(this.syncState === SyncConnectionState.CONNECTED ? this.themeColors.primary : this.themeColors.textSecondary)
+                    }
+                    .alignItems(HorizontalAlign.Start)
+
                     Blank()
-                    Text('未连接 >')
+                    Text('配置 >')
                       .fontSize(13)
-                      .fontColor('#8F959E')
+                      .fontColor(this.themeColors.primary)
                   }
                   .width('100%')
                   .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                  .onClick(() => {
+                    this.isShowSyncModal = true;
+                  })
                 }
 
                 ListItem() {
                   Row() {
                     Text('关于项目')
                       .fontSize(15)
+                      .fontColor(this.themeColors.textPrimary)
                     Blank()
                     Text('v1.0.0 (HarmonyOS NEXT 26)')
                       .fontSize(13)
-                      .fontColor('#8F959E')
+                      .fontColor(this.themeColors.textSecondary)
                   }
                   .width('100%')
                   .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                 }
               }
               .width('100%')
-              .divider({ strokeWidth: 0.5, color: '#F2F3F5', startMargin: 16 })
+              .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
             }
             .width('100%')
             .height('100%')
+            .backgroundColor(this.themeColors.background)
           }
           .tabBar('设置')
         }
@@ -458,12 +549,13 @@ struct Index {
             Text(this.currentMusic.name)
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
+              .fontColor(this.themeColors.textPrimary)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
             Text(this.currentMusic.singer)
               .fontSize(12)
-              .fontColor('#8F959E')
+              .fontColor(this.themeColors.textSecondary)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
@@ -478,7 +570,7 @@ struct Index {
             .width(36)
             .height(36)
             .borderRadius(18)
-            .backgroundColor('#07C160')
+            .backgroundColor(this.themeColors.primary)
             .fontColor('#FFFFFF')
             .onClick(() => {
               this.playerService.togglePlay();
@@ -487,13 +579,13 @@ struct Index {
         .width('100%')
         .height(60)
         .padding({ left: 16, right: 16 })
-        .backgroundColor('#F8F9FA')
-        .border({ width: { top: 1 }, color: '#E4E6EB' })
+        .backgroundColor(this.themeColors.cardBackground)
+        .border({ width: { top: 1 }, color: this.themeColors.divider })
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#FFFFFF')
+    .backgroundColor(this.themeColors.background)
     // 全屏播放器半模态
     .bindSheet($$this.isShowPlayDetail, this.PlayDetailSheet(), {
       height: SheetSize.LARGE,
@@ -503,6 +595,18 @@ struct Index {
     // 音源管理半模态
     .bindSheet($$this.isShowSourceModal, this.SourceManageSheet(), {
       height: SheetSize.MEDIUM,
+      showClose: true,
+      dragBar: true
+    })
+    // 多端同步配置半模态
+    .bindSheet($$this.isShowSyncModal, this.SyncManageSheet(), {
+      height: 420,
+      showClose: true,
+      dragBar: true
+    })
+    // 主题色彩设置半模态
+    .bindSheet($$this.isShowThemeModal, this.ThemeManageSheet(), {
+      height: 360,
       showClose: true,
       dragBar: true
     })
@@ -528,6 +632,7 @@ struct Index {
       Text('自定义音源管理 (User API)')
         .fontSize(16)
         .fontWeight(FontWeight.Bold)
+        .fontColor(this.themeColors.textPrimary)
         .margin({ top: 8, bottom: 8 })
 
       List() {
@@ -538,9 +643,10 @@ struct Index {
                 Text(src.name)
                   .fontSize(14)
                   .fontWeight(FontWeight.Medium)
+                  .fontColor(this.themeColors.textPrimary)
                 Text(`${src.description} · v${src.version}`)
                   .fontSize(11)
-                  .fontColor('#8F959E')
+                  .fontColor(this.themeColors.textSecondary)
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
@@ -548,16 +654,16 @@ struct Index {
               if (this.activeSource?.id === src.id) {
                 Text('使用中')
                   .fontSize(12)
-                  .fontColor('#07C160')
+                  .fontColor(this.themeColors.primary)
                   .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                  .backgroundColor('#E8F8F0')
+                  .backgroundColor(this.themeColors.primaryLight)
                   .borderRadius(8)
               } else {
                 Button('启用')
                   .fontSize(12)
                   .height(28)
-                  .backgroundColor('#F2F3F5')
-                  .fontColor('#1F2329')
+                  .backgroundColor(this.themeColors.cardBackground)
+                  .fontColor(this.themeColors.textPrimary)
                   .onClick(() => {
                     this.sourceService.setActiveSource(src.id);
                     this.loadSources();
@@ -584,7 +690,7 @@ struct Index {
         Button('导入')
           .fontSize(13)
           .height(40)
-          .backgroundColor('#07C160')
+          .backgroundColor(this.themeColors.primary)
           .fontColor(Color.White)
           .onClick(() => {
             if (this.importScriptInput.trim()) {
@@ -600,5 +706,162 @@ struct Index {
     .width('100%')
     .height('100%')
     .padding({ left: 20, right: 20 })
+    .backgroundColor(this.themeColors.background)
+  }
+
+  @Builder
+  SyncManageSheet() {
+    Column({ space: 14 }) {
+      Text('多端数据同步配置 (Sync Server)')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.themeColors.textPrimary)
+        .margin({ top: 12, bottom: 4 })
+
+      // 服务器地址
+      Column({ space: 4 }) {
+        Text('服务器地址与端口')
+          .fontSize(12)
+          .fontColor(this.themeColors.textSecondary)
+          .alignSelf(ItemAlign.Start)
+
+        Row({ space: 8 }) {
+          TextInput({ placeholder: 'http://192.168.1.100', text: this.syncHost })
+            .layoutWeight(3)
+            .height(40)
+            .onChange((v: string) => {
+              this.syncHost = v;
+            })
+
+          TextInput({ placeholder: '9527', text: this.syncPort.toString() })
+            .layoutWeight(1)
+            .height(40)
+            .type(InputType.Number)
+            .onChange((v: string) => {
+              this.syncPort = parseInt(v) || 9527;
+            })
+        }
+      }
+      .width('100%')
+
+      // 连接秘钥
+      Column({ space: 4 }) {
+        Text('连接密钥 (Auth Key)')
+          .fontSize(12)
+          .fontColor(this.themeColors.textSecondary)
+          .alignSelf(ItemAlign.Start)
+
+        TextInput({ placeholder: '请输入同步认证密钥', text: this.syncKey })
+          .width('100%')
+          .height(40)
+          .type(InputType.Password)
+          .onChange((v: string) => {
+            this.syncKey = v;
+          })
+      }
+      .width('100%')
+
+      // 同步操作按钮
+      Row({ space: 12 }) {
+        Button('测试连接')
+          .layoutWeight(1)
+          .height(40)
+          .backgroundColor(this.themeColors.cardBackground)
+          .fontColor(this.themeColors.textPrimary)
+          .onClick(async () => {
+            await this.syncService.connectServer(this.syncHost, this.syncPort, this.syncKey);
+          })
+
+        Button('立即双向同步')
+          .layoutWeight(1)
+          .height(40)
+          .backgroundColor(this.themeColors.primary)
+          .fontColor(Color.White)
+          .onClick(async () => {
+            await this.syncService.syncData();
+            await this.loadCollections();
+          })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+
+      Text(`当前状态：${this.syncReportText}`)
+        .fontSize(12)
+        .fontColor(this.themeColors.textSecondary)
+        .margin({ bottom: 12 })
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 20, right: 20 })
+    .backgroundColor(this.themeColors.background)
+  }
+
+  @Builder
+  ThemeManageSheet() {
+    Column({ space: 16 }) {
+      Text('个性化主题与配色')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.themeColors.textPrimary)
+        .margin({ top: 12 })
+
+      // 明暗模式切换
+      Row({ space: 12 }) {
+        Button('浅色模式')
+          .layoutWeight(1)
+          .height(36)
+          .backgroundColor(this.currentThemeMode === ThemeMode.LIGHT ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+          .fontColor(this.currentThemeMode === ThemeMode.LIGHT ? this.themeColors.primary : this.themeColors.textPrimary)
+          .onClick(() => {
+            this.currentThemeMode = ThemeMode.LIGHT;
+            this.themeService.setMode(ThemeMode.LIGHT);
+          })
+
+        Button('深色模式')
+          .layoutWeight(1)
+          .height(36)
+          .backgroundColor(this.currentThemeMode === ThemeMode.DARK ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+          .fontColor(this.currentThemeMode === ThemeMode.DARK ? this.themeColors.primary : this.themeColors.textPrimary)
+          .onClick(() => {
+            this.currentThemeMode = ThemeMode.DARK;
+            this.themeService.setMode(ThemeMode.DARK);
+          })
+      }
+      .width('100%')
+
+      // 主题色彩条
+      Column({ space: 8 }) {
+        Text('选择主色调')
+          .fontSize(13)
+          .fontColor(this.themeColors.textSecondary)
+          .alignSelf(ItemAlign.Start)
+
+        Row({ space: 12 }) {
+          ForEach(ThemeService.PRESETS, (p: ThemePreset) => {
+            Column({ space: 4 }) {
+              Circle({ width: 36, height: 36 })
+                .fill(p.color)
+                .stroke(this.themeColors.primary === p.color ? '#1F2329' : 'transparent')
+                .strokeWidth(2)
+                .onClick(() => {
+                  this.themeService.setPrimaryColor(p.color);
+                })
+
+              Text(p.name)
+                .fontSize(11)
+                .fontColor(this.themeColors.textSecondary)
+            }
+          })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.SpaceBetween)
+        .padding({ top: 6, bottom: 6 })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 20, right: 20 })
+    .backgroundColor(this.themeColors.background)
   }
 }

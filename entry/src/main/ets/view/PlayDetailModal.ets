@@ -1,7 +1,8 @@
-import { MusicItem, PlayMode, PlayState } from '../model/MusicModel';
+import { MusicItem, MusicQuality, PlayMode, PlayState } from '../model/MusicModel';
 import { AudioPlayerService } from '../services/AudioPlayerService';
 import { LyricView } from './LyricView';
 import { PlaylistDrawer } from './PlaylistDrawer';
+import { QualitySelectDialog } from './QualitySelectDialog';
 
 @Component
 export struct PlayDetailModal {
@@ -17,6 +18,8 @@ export struct PlayDetailModal {
   @State private sliderValue: number = 0;
   @State private rotateAngle: number = 0;
   @State private showPlaylistDrawer: boolean = false;
+  @State private showQualityModal: boolean = false;
+  @State private currentQuality: MusicQuality = '320k';
 
   private playerService: AudioPlayerService = AudioPlayerService.getInstance();
 
@@ -55,13 +58,25 @@ export struct PlayDetailModal {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Center)
 
-        Button(this.showLyric ? '封面' : '歌词')
-          .fontSize(14)
-          .fontColor('#07C160')
-          .backgroundColor('transparent')
-          .onClick(() => {
-            this.showLyric = !this.showLyric;
-          })
+        Row({ space: 6 }) {
+          Button(this.showLyric ? '封面' : '歌词')
+            .fontSize(13)
+            .fontColor('#07C160')
+            .backgroundColor('#E8F8F0')
+            .height(28)
+            .onClick(() => {
+              this.showLyric = !this.showLyric;
+            })
+
+          Button(this.currentQuality.toUpperCase())
+            .fontSize(11)
+            .fontColor('#07C160')
+            .backgroundColor('#E8F8F0')
+            .height(28)
+            .onClick(() => {
+              this.showQualityModal = true;
+            })
+        }
       }
       .width('100%')
       .height(56)
@@ -213,12 +228,31 @@ export struct PlayDetailModal {
       dragBar: true,
       backgroundColor: '#22242B'
     })
+    .bindSheet($$this.showQualityModal, this.qualitySheetBuilder(), {
+      height: 340,
+      dragBar: true,
+      showClose: true
+    })
   }
 
   @Builder
   playlistSheetBuilder() {
     PlaylistDrawer({
       isShowing: $showPlaylistDrawer
+    })
+  }
+
+  @Builder
+  qualitySheetBuilder() {
+    QualitySelectDialog({
+      currentQuality: this.currentQuality,
+      onSelect: (q: MusicQuality) => {
+        this.currentQuality = q;
+        this.showQualityModal = false;
+      },
+      onClose: () => {
+        this.showQualityModal = false;
+      }
     })
   }
   }
