@@ -18,6 +18,8 @@ import { AddToPlaylistDialog } from '../view/AddToPlaylistDialog';
 import { CustomPlaylistDetailDialog } from '../view/CustomPlaylistDetailDialog';
 import { LyricView } from '../view/LyricView';
 
+export type ModalType = 'none' | 'player' | 'playlist_detail' | 'source' | 'sync' | 'theme' | 'equalizer' | 'add_to_playlist' | 'about';
+
 @Entry
 @Component
 struct Index {
@@ -28,6 +30,9 @@ struct Index {
   @State totalTime: number = 0;
   @State playMode: PlayMode = PlayMode.LIST_LOOP;
 
+  // 统一绝对可靠的弹窗浮层管理
+  @State activeModal: ModalType = 'none';
+
   // 响应式断点系统 (sm / md / lg)
   @State curBreakpoint: BreakpointType = BreakpointConstants.BREAKPOINT_SM;
   private breakpointSystem: BreakpointSystem = new BreakpointSystem();
@@ -35,9 +40,8 @@ struct Index {
   // 主题与色彩
   @State themeColors: ThemeColorSet = ThemeService.getInstance().getColors();
   @State currentThemeMode: ThemeMode = ThemeMode.LIGHT;
-  @State isShowThemeModal: boolean = false;
 
-  // 搜索相关状态 (对齐原作者 BlankView: 默认不预填关键词)
+  // 搜索相关状态 (默认空白搜索首页)
   @State searchKeyword: string = '';
   @State searchSourceTab: string = 'all';
   @State searchResultList: MusicItem[] = [];
@@ -51,18 +55,10 @@ struct Index {
   @State downloadTaskList: DownloadTask[] = [];
   @State customPlaylists: CustomPlaylist[] = [];
   @State selectedPlaylistId: string = '';
-  @State isShowPlaylistDetail: boolean = false;
   @State isScanningLocal: boolean = false;
   @State newPlaylistNameInput: string = '';
   @State isShowCreatePlaylistInput: boolean = false;
 
-  // 弹窗控制
-  @State isShowPlayDetail: boolean = false;
-  @State isShowSourceModal: boolean = false;
-  @State isShowEqualizerModal: boolean = false;
-  @State isShowSyncModal: boolean = false;
-  @State isShowAboutModal: boolean = false;
-  @State isShowAddToPlaylistModal: boolean = false;
   @State targetMusicForPlaylist: MusicItem | null = null;
 
   // 音源与同步
@@ -171,7 +167,6 @@ struct Index {
     }
 
     const kw = this.searchKeyword.trim();
-    // 保存到历史搜索
     if (!this.searchHistoryList.includes(kw)) {
       this.searchHistoryList.unshift(kw);
       if (this.searchHistoryList.length > 10) {
@@ -202,7 +197,7 @@ struct Index {
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Row() {
-        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏 (三大核心功能)
+        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏
         if (this.curBreakpoint !== BreakpointConstants.BREAKPOINT_SM) {
           Column({ space: 14 }) {
             Row({ space: 8 }) {
@@ -253,13 +248,13 @@ struct Index {
                 Image($r('app.media.ic_equalizer')).width(16).height(16).fillColor(this.themeColors.textPrimary)
               }
               .width(36).height(36).backgroundColor(this.themeColors.cardBackground)
-              .onClick(() => { this.isShowEqualizerModal = true; })
+              .onClick(() => { this.activeModal = 'equalizer'; })
 
               Button({ type: ButtonType.Circle }) {
                 Image($r('app.media.ic_theme')).width(16).height(16).fillColor(this.themeColors.textPrimary)
               }
               .width(36).height(36).backgroundColor(this.themeColors.cardBackground)
-              .onClick(() => { this.isShowThemeModal = true; })
+              .onClick(() => { this.activeModal = 'theme'; })
             }
             .padding({ bottom: 20 })
           }
@@ -289,7 +284,7 @@ struct Index {
                     .fillColor(this.themeColors.textPrimary)
                 }
                 .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
-                .onClick(() => { this.isShowEqualizerModal = true; })
+                .onClick(() => { this.activeModal = 'equalizer'; })
 
                 Button({ type: ButtonType.Circle }) {
                   Image($r('app.media.ic_theme'))
@@ -298,7 +293,7 @@ struct Index {
                     .fillColor(this.themeColors.textPrimary)
                 }
                 .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
-                .onClick(() => { this.isShowThemeModal = true; })
+                .onClick(() => { this.activeModal = 'theme'; })
 
                 Text(this.activeSource ? this.activeSource.name : '内置源')
                   .fontSize(11)
@@ -306,7 +301,7 @@ struct Index {
                   .backgroundColor(this.themeColors.primaryLight)
                   .padding({ left: 8, right: 8, top: 5, bottom: 5 })
                   .borderRadius(12)
-                  .onClick(() => { this.isShowSourceModal = true; })
+                  .onClick(() => { this.activeModal = 'source'; })
               }
             }
             .width('100%')
@@ -345,10 +340,9 @@ struct Index {
             index: this.activeTabIndex,
             barPosition: this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? BarPosition.End : BarPosition.Start
           }) {
-            // Tab 1: 搜索 (多源过滤检索 + 经典 BlankView)
+            // Tab 1: 搜索
             TabContent() {
               Column() {
-                // 搜索框 (支持清空与回车即搜)
                 Row({ space: 8 }) {
                   Search({ value: this.searchKeyword, placeholder: '搜索音乐、歌手、专辑' })
                     .layoutWeight(1)
@@ -394,7 +388,6 @@ struct Index {
                 .scrollBar(BarState.Off)
                 .width('100%')
 
-                // 搜索结果呈现 或 经典 BlankView 空白首页
                 if (this.isSearching) {
                   Row({ space: 8 }) {
                     LoadingProgress().width(20).height(20).color(this.themeColors.primary)
@@ -404,7 +397,6 @@ struct Index {
                 }
 
                 if (this.searchResultList.length > 0) {
-                  // 有搜索结果：纯文字歌曲列表
                   List() {
                     ForEach(this.searchResultList, (item: MusicItem) => {
                       ListItem() {
@@ -416,7 +408,7 @@ struct Index {
                           },
                           onMoreClick: (it: MusicItem) => {
                             this.targetMusicForPlaylist = it;
-                            this.isShowAddToPlaylistModal = true;
+                            this.activeModal = 'add_to_playlist';
                           }
                         })
                       }
@@ -426,10 +418,9 @@ struct Index {
                   .width('100%')
                   .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                 } else {
-                  // 无搜索输入时：原版经典 BlankView (热搜词 + 历史搜索 + 欢迎语)
+                  // BlankView
                   Scroll() {
                     Column({ space: 16 }) {
-                      // 热门搜索词
                       Column({ space: 8 }) {
                         Text('热门搜索')
                           .fontSize(13)
@@ -455,7 +446,6 @@ struct Index {
                       }
                       .width('100%')
 
-                      // 历史搜索词
                       if (this.searchHistoryList.length > 0) {
                         Column({ space: 8 }) {
                           Row() {
@@ -501,7 +491,6 @@ struct Index {
                         .width('100%')
                       }
 
-                      // 欢迎标语
                       Column({ space: 6 }) {
                         Image($r('app.media.ic_search'))
                           .width(44)
@@ -529,7 +518,7 @@ struct Index {
             }
             .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '搜索' : '')
 
-            // Tab 2: 我的 (MyList: 真实收藏 / 自建歌单点击进详情 / 本地 / 下载)
+            // Tab 2: 我的
             TabContent() {
               Column() {
                 Row({ space: 6 }) {
@@ -583,7 +572,7 @@ struct Index {
                             },
                             onMoreClick: (it: MusicItem) => {
                               this.targetMusicForPlaylist = it;
-                              this.isShowAddToPlaylistModal = true;
+                              this.activeModal = 'add_to_playlist';
                             }
                           })
                         }
@@ -594,7 +583,7 @@ struct Index {
                     .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                   }
                 } else if (this.myActiveSubTab === 1) {
-                  // 自建歌单 (支持创建与点击进入歌单详情)
+                  // 自建歌单
                   Column() {
                     Row() {
                       Text(`全部歌单 (${this.customPlaylists.length})`).fontSize(13).fontColor(this.themeColors.textSecondary)
@@ -662,9 +651,9 @@ struct Index {
                           .width('100%')
                           .padding({ left: 16, right: 16, top: 8, bottom: 8 })
                           .onClick(() => {
-                            // 点击歌单，进入歌单详情弹窗！
+                            // 点击歌单，直接打开歌单详情弹窗！
                             this.selectedPlaylistId = pl.id;
-                            this.isShowPlaylistDetail = true;
+                            this.activeModal = 'playlist_detail';
                           })
                         }
                       }, (pl: CustomPlaylist) => pl.id)
@@ -701,7 +690,7 @@ struct Index {
                             },
                             onMoreClick: (it: MusicItem) => {
                               this.targetMusicForPlaylist = it;
-                              this.isShowAddToPlaylistModal = true;
+                              this.activeModal = 'add_to_playlist';
                             }
                           })
                         }
@@ -749,11 +738,10 @@ struct Index {
             }
             .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '我的' : '')
 
-            // Tab 3: 设置 (全功能可点进、无缝弹窗)
+            // Tab 3: 设置 (每一项点击即刻打开弹窗)
             TabContent() {
               Column() {
                 List() {
-                  // 1. 音效与均衡器
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -767,11 +755,10 @@ struct Index {
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                     .onClick(() => {
-                      this.isShowEqualizerModal = true;
+                      this.activeModal = 'equalizer';
                     })
                   }
 
-                  // 2. 主题与配色
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -785,11 +772,10 @@ struct Index {
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                     .onClick(() => {
-                      this.isShowThemeModal = true;
+                      this.activeModal = 'theme';
                     })
                   }
 
-                  // 3. 自定义音源
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -803,11 +789,10 @@ struct Index {
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                     .onClick(() => {
-                      this.isShowSourceModal = true;
+                      this.activeModal = 'source';
                     })
                   }
 
-                  // 4. 桌面悬浮歌词
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -827,7 +812,6 @@ struct Index {
                     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
                   }
 
-                  // 5. 多端数据同步
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -843,11 +827,10 @@ struct Index {
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                     .onClick(() => {
-                      this.isShowSyncModal = true;
+                      this.activeModal = 'sync';
                     })
                   }
 
-                  // 6. 关于项目
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -861,7 +844,7 @@ struct Index {
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
                     .onClick(() => {
-                      this.isShowAboutModal = true;
+                      this.activeModal = 'about';
                     })
                   }
                 }
@@ -939,7 +922,7 @@ struct Index {
           .backgroundColor(this.themeColors.primaryLight)
           .margin({ right: 12 })
           .onClick(() => {
-            this.isShowPlayDetail = true;
+            this.activeModal = 'player';
           })
 
           Column({ space: 2 }) {
@@ -959,7 +942,7 @@ struct Index {
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
           .onClick(() => {
-            this.isShowPlayDetail = true;
+            this.activeModal = 'player';
           })
 
           Button({ type: ButtonType.Circle }) {
@@ -981,115 +964,103 @@ struct Index {
         .backgroundColor(this.themeColors.cardBackground)
         .border({ width: { top: 1 }, color: this.themeColors.divider })
       }
+
+      // ==========================================
+      // 全局绝对可信赖的半模态浮层系统 (彻底解决模拟器弹窗失效)
+      // ==========================================
+      if (this.activeModal !== 'none') {
+        Column() {
+          // 顶部半透明遮罩 (点击可直接关闭)
+          Blank()
+            .width('100%')
+            .layoutWeight(1)
+            .onClick(() => {
+              this.activeModal = 'none';
+            })
+
+          // 浮层内容面板
+          Column() {
+            if (this.activeModal === 'player') {
+              PlayDetailModal({
+                currentMusic: this.currentMusic,
+                playState: this.playState,
+                currentTime: this.currentTime,
+                totalTime: this.totalTime,
+                playMode: this.playMode,
+                onClose: () => {
+                  this.activeModal = 'none';
+                }
+              })
+            } else if (this.activeModal === 'playlist_detail') {
+              CustomPlaylistDetailDialog({
+                playlistId: this.selectedPlaylistId,
+                onClose: () => {
+                  this.activeModal = 'none';
+                },
+                onMoreClick: (it: MusicItem) => {
+                  this.targetMusicForPlaylist = it;
+                  this.activeModal = 'add_to_playlist';
+                }
+              })
+            } else if (this.activeModal === 'source') {
+              this.SourceManageContent()
+            } else if (this.activeModal === 'sync') {
+              this.SyncManageContent()
+            } else if (this.activeModal === 'theme') {
+              this.ThemeManageContent()
+            } else if (this.activeModal === 'equalizer') {
+              EqualizerDialog({
+                onClose: () => {
+                  this.activeModal = 'none';
+                }
+              })
+            } else if (this.activeModal === 'add_to_playlist') {
+              AddToPlaylistDialog({
+                musicItem: this.targetMusicForPlaylist,
+                onFinished: () => {
+                  this.activeModal = 'none';
+                }
+              })
+            } else if (this.activeModal === 'about') {
+              this.AboutContent()
+            }
+          }
+          .width('100%')
+          .backgroundColor('#FFFFFF')
+          .borderRadius({ topLeft: 16, topRight: 16 })
+          .shadow({ radius: 30, color: '#4D000000', offsetY: -4 })
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#66000000') // 暗色遮罩
+        .animation({ duration: 250 })
+      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeColors.background)
-    // 1. 全屏播放器半模态
-    .bindSheet($$this.isShowPlayDetail, this.PlayDetailSheet(), {
-      height: SheetSize.LARGE,
-      showClose: false,
-      dragBar: true
-    })
-    // 2. 自建歌单详情半模态 (点击歌单即可查看)
-    .bindSheet($$this.isShowPlaylistDetail, this.PlaylistDetailSheet(), {
-      height: SheetSize.LARGE,
-      showClose: true,
-      dragBar: true
-    })
-    // 3. 音源管理半模态
-    .bindSheet($$this.isShowSourceModal, this.SourceManageSheet(), {
-      height: SheetSize.MEDIUM,
-      showClose: true,
-      dragBar: true
-    })
-    // 4. 多端同步配置半模态
-    .bindSheet($$this.isShowSyncModal, this.SyncManageSheet(), {
-      height: 420,
-      showClose: true,
-      dragBar: true
-    })
-    // 5. 主题色彩设置半模态
-    .bindSheet($$this.isShowThemeModal, this.ThemeManageSheet(), {
-      height: 360,
-      showClose: true,
-      dragBar: true
-    })
-    // 6. 音效与均衡器设置半模态
-    .bindSheet($$this.isShowEqualizerModal, this.EqualizerSheet(), {
-      height: 440,
-      showClose: true,
-      dragBar: true
-    })
-    // 7. 添加到歌单半模态
-    .bindSheet($$this.isShowAddToPlaylistModal, this.AddToPlaylistSheet(), {
-      height: 400,
-      showClose: true,
-      dragBar: true
-    })
-    // 8. 关于项目半模态
-    .bindSheet($$this.isShowAboutModal, this.AboutSheet(), {
-      height: 320,
-      showClose: true,
-      dragBar: true
-    })
   }
 
   @Builder
-  PlayDetailSheet() {
-    PlayDetailModal({
-      currentMusic: this.currentMusic,
-      playState: this.playState,
-      currentTime: this.currentTime,
-      totalTime: this.totalTime,
-      playMode: this.playMode,
-      onClose: () => {
-        this.isShowPlayDetail = false;
-      }
-    })
-  }
-
-  @Builder
-  PlaylistDetailSheet() {
-    CustomPlaylistDetailDialog({
-      playlistId: this.selectedPlaylistId,
-      onClose: () => {
-        this.isShowPlaylistDetail = false;
-      },
-      onMoreClick: (it: MusicItem) => {
-        this.targetMusicForPlaylist = it;
-        this.isShowAddToPlaylistModal = true;
-      }
-    })
-  }
-
-  @Builder
-  EqualizerSheet() {
-    EqualizerDialog({
-      onClose: () => {
-        this.isShowEqualizerModal = false;
-      }
-    })
-  }
-
-  @Builder
-  AddToPlaylistSheet() {
-    AddToPlaylistDialog({
-      musicItem: this.targetMusicForPlaylist,
-      onFinished: () => {
-        this.isShowAddToPlaylistModal = false;
-      }
-    })
-  }
-
-  @Builder
-  SourceManageSheet() {
+  SourceManageContent() {
     Column({ space: 12 }) {
-      Text('自定义音源管理 (User API)')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.themeColors.textPrimary)
-        .margin({ top: 8, bottom: 8 })
+      Row() {
+        Text('自定义音源管理 (User API)')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1F2329')
+
+        Blank()
+
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_close'))
+            .width(16).height(16).fillColor('#8F959E')
+        }
+        .width(32).height(32).backgroundColor(Color.Transparent)
+        .onClick(() => { this.activeModal = 'none'; })
+      }
+      .width('100%')
+      .padding({ left: 20, right: 16, top: 16, bottom: 4 })
 
       List() {
         ForEach(this.sourceList, (src: UserSourceScriptInfo) => {
@@ -1099,10 +1070,10 @@ struct Index {
                 Text(src.name)
                   .fontSize(14)
                   .fontWeight(FontWeight.Medium)
-                  .fontColor(this.themeColors.textPrimary)
+                  .fontColor('#1F2329')
                 Text(`${src.description} · v${src.version}`)
                   .fontSize(11)
-                  .fontColor(this.themeColors.textSecondary)
+                  .fontColor('#8F959E')
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
@@ -1110,16 +1081,16 @@ struct Index {
               if (this.activeSource?.id === src.id) {
                 Text('使用中')
                   .fontSize(12)
-                  .fontColor(this.themeColors.primary)
+                  .fontColor('#07C160')
                   .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                  .backgroundColor(this.themeColors.primaryLight)
+                  .backgroundColor('#E8F8F0')
                   .borderRadius(8)
               } else {
                 Button('启用')
                   .fontSize(12)
                   .height(28)
-                  .backgroundColor(this.themeColors.cardBackground)
-                  .fontColor(this.themeColors.textPrimary)
+                  .backgroundColor('#F2F3F5')
+                  .fontColor('#1F2329')
                   .onClick(() => {
                     this.sourceService.setActiveSource(src.id);
                     this.loadSources();
@@ -1134,7 +1105,6 @@ struct Index {
       .width('100%')
       .layoutWeight(1)
 
-      // 导入音源输入框
       Row({ space: 8 }) {
         TextInput({ placeholder: '粘贴音源脚本代码...', text: this.importScriptInput })
           .layoutWeight(1)
@@ -1146,7 +1116,7 @@ struct Index {
         Button('导入')
           .fontSize(13)
           .height(40)
-          .backgroundColor(this.themeColors.primary)
+          .backgroundColor('#07C160')
           .fontColor(Color.White)
           .onClick(() => {
             if (this.importScriptInput.trim()) {
@@ -1157,27 +1127,38 @@ struct Index {
           })
       }
       .width('100%')
-      .padding({ bottom: 12 })
+      .padding({ bottom: 16 })
     }
     .width('100%')
-    .height('100%')
+    .height(380)
     .padding({ left: 20, right: 20 })
-    .backgroundColor(this.themeColors.background)
   }
 
   @Builder
-  SyncManageSheet() {
+  SyncManageContent() {
     Column({ space: 14 }) {
-      Text('多端数据同步配置 (Sync Server)')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.themeColors.textPrimary)
-        .margin({ top: 12, bottom: 4 })
+      Row() {
+        Text('多端数据同步配置 (Sync Server)')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1F2329')
+
+        Blank()
+
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_close'))
+            .width(16).height(16).fillColor('#8F959E')
+        }
+        .width(32).height(32).backgroundColor(Color.Transparent)
+        .onClick(() => { this.activeModal = 'none'; })
+      }
+      .width('100%')
+      .padding({ left: 20, right: 16, top: 16, bottom: 4 })
 
       Column({ space: 4 }) {
         Text('服务器地址与端口')
           .fontSize(12)
-          .fontColor(this.themeColors.textSecondary)
+          .fontColor('#8F959E')
           .alignSelf(ItemAlign.Start)
 
         Row({ space: 8 }) {
@@ -1202,7 +1183,7 @@ struct Index {
       Column({ space: 4 }) {
         Text('连接密钥 (Auth Key)')
           .fontSize(12)
-          .fontColor(this.themeColors.textSecondary)
+          .fontColor('#8F959E')
           .alignSelf(ItemAlign.Start)
 
         TextInput({ placeholder: '请输入同步认证密钥', text: this.syncKey })
@@ -1219,8 +1200,8 @@ struct Index {
         Button('测试连接')
           .layoutWeight(1)
           .height(40)
-          .backgroundColor(this.themeColors.cardBackground)
-          .fontColor(this.themeColors.textPrimary)
+          .backgroundColor('#F2F3F5')
+          .fontColor('#1F2329')
           .onClick(async () => {
             await this.syncService.connectServer(this.syncHost, this.syncPort, this.syncKey);
           })
@@ -1228,7 +1209,7 @@ struct Index {
         Button('立即双向同步')
           .layoutWeight(1)
           .height(40)
-          .backgroundColor(this.themeColors.primary)
+          .backgroundColor('#07C160')
           .fontColor(Color.White)
           .onClick(async () => {
             await this.syncService.syncData();
@@ -1236,34 +1217,45 @@ struct Index {
           })
       }
       .width('100%')
-      .margin({ top: 8 })
+      .margin({ top: 4 })
 
       Text(`当前状态：${this.syncReportText}`)
         .fontSize(12)
-        .fontColor(this.themeColors.textSecondary)
-        .margin({ bottom: 12 })
+        .fontColor('#8F959E')
+        .margin({ bottom: 16 })
     }
     .width('100%')
-    .height('100%')
+    .height(400)
     .padding({ left: 20, right: 20 })
-    .backgroundColor(this.themeColors.background)
   }
 
   @Builder
-  ThemeManageSheet() {
+  ThemeManageContent() {
     Column({ space: 16 }) {
-      Text('个性化主题与配色')
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.themeColors.textPrimary)
-        .margin({ top: 12 })
+      Row() {
+        Text('个性化主题与配色')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1F2329')
+
+        Blank()
+
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_close'))
+            .width(16).height(16).fillColor('#8F959E')
+        }
+        .width(32).height(32).backgroundColor(Color.Transparent)
+        .onClick(() => { this.activeModal = 'none'; })
+      }
+      .width('100%')
+      .padding({ left: 20, right: 16, top: 16, bottom: 4 })
 
       Row({ space: 12 }) {
         Button('浅色模式')
           .layoutWeight(1)
           .height(36)
-          .backgroundColor(this.currentThemeMode === ThemeMode.LIGHT ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-          .fontColor(this.currentThemeMode === ThemeMode.LIGHT ? this.themeColors.primary : this.themeColors.textPrimary)
+          .backgroundColor(this.currentThemeMode === ThemeMode.LIGHT ? '#E8F8F0' : '#F2F3F5')
+          .fontColor(this.currentThemeMode === ThemeMode.LIGHT ? '#07C160' : '#1F2329')
           .onClick(() => {
             this.currentThemeMode = ThemeMode.LIGHT;
             this.themeService.setMode(ThemeMode.LIGHT);
@@ -1272,8 +1264,8 @@ struct Index {
         Button('深色模式')
           .layoutWeight(1)
           .height(36)
-          .backgroundColor(this.currentThemeMode === ThemeMode.DARK ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-          .fontColor(this.currentThemeMode === ThemeMode.DARK ? this.themeColors.primary : this.themeColors.textPrimary)
+          .backgroundColor(this.currentThemeMode === ThemeMode.DARK ? '#E8F8F0' : '#F2F3F5')
+          .fontColor(this.currentThemeMode === ThemeMode.DARK ? '#07C160' : '#1F2329')
           .onClick(() => {
             this.currentThemeMode = ThemeMode.DARK;
             this.themeService.setMode(ThemeMode.DARK);
@@ -1284,7 +1276,7 @@ struct Index {
       Column({ space: 8 }) {
         Text('选择主色调')
           .fontSize(13)
-          .fontColor(this.themeColors.textSecondary)
+          .fontColor('#8F959E')
           .alignSelf(ItemAlign.Start)
 
         Row({ space: 12 }) {
@@ -1300,54 +1292,65 @@ struct Index {
 
               Text(p.name)
                 .fontSize(11)
-                .fontColor(this.themeColors.textSecondary)
+                .fontColor('#8F959E')
             }
           }, (p: ThemePreset) => p.id)
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceBetween)
-        .padding({ top: 6, bottom: 6 })
+        .padding({ top: 6, bottom: 16 })
       }
       .width('100%')
     }
     .width('100%')
-    .height('100%')
+    .height(320)
     .padding({ left: 20, right: 20 })
-    .backgroundColor(this.themeColors.background)
   }
 
   @Builder
-  AboutSheet() {
+  AboutContent() {
     Column({ space: 12 }) {
-      Text('关于 洛雪音乐 (HarmonyOS NEXT)')
-        .fontSize(17)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.themeColors.textPrimary)
-        .margin({ top: 16, bottom: 4 })
+      Row() {
+        Text('关于 洛雪音乐')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#1F2329')
+
+        Blank()
+
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_close'))
+            .width(16).height(16).fillColor('#8F959E')
+        }
+        .width(32).height(32).backgroundColor(Color.Transparent)
+        .onClick(() => { this.activeModal = 'none'; })
+      }
+      .width('100%')
+      .padding({ left: 20, right: 16, top: 16, bottom: 4 })
 
       Text('基于 lyswhut/lx-music-mobile 深度重构的原生纯血鸿蒙音乐客户端。')
         .fontSize(13)
-        .fontColor(this.themeColors.textSecondary)
+        .fontColor('#8F959E')
         .textAlign(TextAlign.Center)
         .width('90%')
+        .margin({ top: 12 })
 
-      Text('特别致谢原作者 @lyswhut 提供的优秀架构设计理念。\n本软件不内置任何音源，完全遵循开源社区 Apache-2.0 规范。')
+      Text('特别致谢原作者 @lyswhut 提供的优秀架构设计理念。\n本软件不内置任何音频，完全遵循开源社区 Apache-2.0 协议。')
         .fontSize(12)
-        .fontColor(this.themeColors.textSecondary)
+        .fontColor('#8F959E')
         .textAlign(TextAlign.Center)
         .width('90%')
 
       Blank()
 
-      Text('v1.0.0 · API 12+ / 26 Release')
+      Text('v1.0.0 · HarmonyOS NEXT 26 Release')
         .fontSize(11)
-        .fontColor(this.themeColors.primary)
-        .padding({ bottom: 16 })
+        .fontColor('#07C160')
+        .padding({ bottom: 20 })
     }
     .width('100%')
-    .height('100%')
+    .height(280)
     .padding({ left: 20, right: 20 })
-    .backgroundColor(this.themeColors.background)
     .alignItems(HorizontalAlign.Center)
   }
 }

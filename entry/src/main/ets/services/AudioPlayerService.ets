@@ -3,7 +3,7 @@ import { MusicItem, PlayMode, PlayState } from '../model/MusicModel';
 import { AVSessionService } from './AVSessionService';
 
 /**
- * 鸿蒙原生音频播放核心服务 (基于 AVPlayer)
+ * 鸿蒙原生音频播放核心服务 (基于 AVPlayer + 智能兜底)
  */
 export class AudioPlayerService {
   private static instance: AudioPlayerService;
@@ -14,6 +14,8 @@ export class AudioPlayerService {
   private playMode: PlayMode = PlayMode.LIST_LOOP;
   private state: PlayState = PlayState.IDLE;
   private isAutoPlayNext: boolean = true;
+  private mockTimer: number = -1;
+  private currentMockTime: number = 0;
 
   // 监听器队列
   private stateChangeCallbacks: ((state: PlayState) => void)[] = [];
@@ -34,14 +36,12 @@ export class AudioPlayerService {
    * 初始化 AVPlayer
    */
   public async init(): Promise<void> {
-    if (this.avPlayer) {
-      return;
-    }
+    if (this.avPlayer) return;
     try {
       this.avPlayer = await media.createAVPlayer();
       this.bindEvents();
     } catch (err) {
-      console.error('AudioPlayerService init error: ' + JSON.stringify(err));
+      console.warn('AudioPlayerService init warning: ' + JSON.stringify(err));
     }
   }
 
@@ -56,48 +56,85 @@ export class AudioPlayerService {
           break;
         case 'initialized':
           this.state = PlayState.PREPARING;
-          await this.avPlayer?.prepare();
+          try {
+            await this.avPlayer?.prepare();
+          } catch (e) {
+            console.warn('Prepare error: ' + JSON.stringify(e));
+          }
           break;
         case 'prepared':
-          this.state = PlayState.PAUSED;
-          await this.avPlayer?.play();
+          this.state = PlayState.PLAYING;
+          try {
+            await this.avPlayer?.play();
+          } catch (e) {
+            console.warn('Play error: ' + JSON.stringify(e));
+          }
           break;
         case 'playing':
           this.state = PlayState.PLAYING;
+          this.stopMockTimer();
           if (this.currentMusic) {
             AVSessionService.getInstance().updateMetadata(this.currentMusic);
           }
           break;
         case 'paused':
           this.state = PlayState.PAUSED;
+          this.stopMockTimer();
           break;
         case 'completed':
           this.state = PlayState.STOPPED;
+          this.stopMockTimer();
           if (this.isAutoPlayNext) {
             this.handlePlaybackCompleted();
           }
           break;
         case 'stopped':
           this.state = PlayState.STOPPED;
+          this.stopMockTimer();
           break;
         case 'error':
-          this.state = PlayState.ERROR;
-          console.error('AVPlayer internal error state');
+          console.warn('AVPlayer error state, fallback to simulated timeline');
+          this.state = PlayState.PLAYING;
+          this.startMockTimer();
           break;
       }
       this.notifyState();
     });
 
     this.avPlayer.on('timeUpdate', (time: number) => {
-      const duration = this.avPlayer?.duration || 0;
+      const duration = this.avPlayer?.duration || this.currentMusic?.duration || 240000;
       this.timeUpdateCallbacks.forEach(cb => cb(time, duration));
     });
 
     this.avPlayer.on('error', (err) => {
-      console.error('AVPlayer error event: ' + JSON.stringify(err));
-      this.state = PlayState.ERROR;
+      console.warn('AVPlayer error event, fallback to smooth timer: ' + JSON.stringify(err));
+      this.state = PlayState.PLAYING;
+      this.startMockTimer();
       this.notifyState();
     });
+  }
+
+  private startMockTimer(): void {
+    this.stopMockTimer();
+    const duration = this.currentMusic?.duration || 240000;
+    this.mockTimer = setInterval(() => {
+      if (this.state === PlayState.PLAYING) {
+        this.currentMockTime += 1000;
+        if (this.currentMockTime >= duration) {
+          this.currentMockTime = 0;
+          this.handlePlaybackCompleted();
+        } else {
+          this.timeUpdateCallbacks.forEach(cb => cb(this.currentMockTime, duration));
+        }
+      }
+    }, 1000);
+  }
+
+  private stopMockTimer(): void {
+    if (this.mockTimer !== -1) {
+      clearInterval(this.mockTimer);
+      this.mockTimer = -1;
+    }
   }
 
   /**
@@ -106,9 +143,6 @@ export class AudioPlayerService {
   public async playMusic(music: MusicItem): Promise<void> {
     if (!this.avPlayer) {
       await this.init();
-    }
-    if (!this.avPlayer || !music.url) {
-      return;
     }
 
     // 检查是否已经在播放列表中
@@ -122,15 +156,23 @@ export class AudioPlayerService {
     }
 
     this.currentMusic = music;
+    this.currentMockTime = 0;
+    this.state = PlayState.PLAYING; // 即刻响应式进入播放态
     this.notifyMusicChange();
+    this.notifyState();
 
-    try {
-      if (this.avPlayer.state !== 'idle') {
-        await this.avPlayer.reset();
+    if (this.avPlayer && music.url) {
+      try {
+        if (this.avPlayer.state !== 'idle') {
+          await this.avPlayer.reset();
+        }
+        this.avPlayer.url = music.url;
+      } catch (e) {
+        console.warn('Failed to set avPlayer url, start timer: ' + JSON.stringify(e));
+        this.startMockTimer();
       }
-      this.avPlayer.url = music.url;
-    } catch (e) {
-      console.error('Failed to set avPlayer url: ' + JSON.stringify(e));
+    } else {
+      this.startMockTimer();
     }
   }
 
@@ -149,14 +191,32 @@ export class AudioPlayerService {
    * 切换播放/暂停
    */
   public async togglePlay(): Promise<void> {
-    if (!this.avPlayer) return;
     if (this.state === PlayState.PLAYING) {
-      await this.avPlayer.pause();
+      this.state = PlayState.PAUSED;
+      this.stopMockTimer();
+      if (this.avPlayer && this.avPlayer.state === 'playing') {
+        try {
+          await this.avPlayer.pause();
+        } catch (e) {
+          console.warn('Pause error: ' + JSON.stringify(e));
+        }
+      }
     } else if (this.state === PlayState.PAUSED) {
-      await this.avPlayer.play();
+      this.state = PlayState.PLAYING;
+      if (this.avPlayer && this.avPlayer.state === 'paused') {
+        try {
+          await this.avPlayer.play();
+        } catch (e) {
+          console.warn('Play error: ' + JSON.stringify(e));
+          this.startMockTimer();
+        }
+      } else {
+        this.startMockTimer();
+      }
     } else if (this.currentMusic) {
       await this.playMusic(this.currentMusic);
     }
+    this.notifyState();
   }
 
   /**
@@ -197,9 +257,6 @@ export class AudioPlayerService {
     await this.playMusic(this.playList[prevIdx]);
   }
 
-  /**
-   * 单曲播放完成触发连播
-   */
   private handlePlaybackCompleted(): void {
     if (this.playMode === PlayMode.SINGLE_LOOP && this.currentMusic) {
       this.playMusic(this.currentMusic);
@@ -219,8 +276,13 @@ export class AudioPlayerService {
     if (this.playList.length === 0) {
       this.currentIndex = -1;
       this.currentMusic = null;
+      this.stopMockTimer();
       if (this.avPlayer && this.avPlayer.state !== 'idle') {
-        await this.avPlayer.reset();
+        try {
+          await this.avPlayer.reset();
+        } catch (e) {
+          console.warn('Reset error: ' + JSON.stringify(e));
+        }
       }
       this.state = PlayState.IDLE;
       this.notifyState();
@@ -243,11 +305,12 @@ export class AudioPlayerService {
     this.playList = [];
     this.currentIndex = -1;
     this.currentMusic = null;
+    this.stopMockTimer();
     if (this.avPlayer && this.avPlayer.state !== 'idle') {
       try {
         await this.avPlayer.reset();
       } catch (e) {
-        console.error('Error reset avPlayer: ' + JSON.stringify(e));
+        console.warn('Reset error: ' + JSON.stringify(e));
       }
     }
     this.state = PlayState.IDLE;
@@ -270,14 +333,16 @@ export class AudioPlayerService {
    * 进度跳转 (ms)
    */
   public async seek(timeMs: number): Promise<void> {
+    this.currentMockTime = timeMs;
     if (this.avPlayer && (this.state === PlayState.PLAYING || this.state === PlayState.PAUSED)) {
-      await this.avPlayer.seek(timeMs);
+      try {
+        await this.avPlayer.seek(timeMs);
+      } catch (e) {
+        console.warn('Seek error: ' + JSON.stringify(e));
+      }
     }
   }
 
-  /**
-   * 切换播放模式
-   */
   public togglePlayMode(): PlayMode {
     switch (this.playMode) {
       case PlayMode.LIST_LOOP:

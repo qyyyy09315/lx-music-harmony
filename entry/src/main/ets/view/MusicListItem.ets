@@ -2,7 +2,7 @@ import { MusicItem } from '../model/MusicModel';
 import { DownloadManagerService } from '../services/DownloadManagerService';
 
 /**
- * 洛雪音乐 原版纯文字极简歌曲列表项 (零缩略图、原生矢量图标)
+ * 洛雪音乐 原版纯文字极简歌曲列表项 (整行热区即点即播)
  */
 @Component
 export struct MusicListItem {
@@ -16,7 +16,7 @@ export struct MusicListItem {
 
   build() {
     Row() {
-      // 歌曲核心文本区域 (纯文字排版，彻底去除多余方形缩略图)
+      // 歌曲核心文本区域
       Column({ space: 4 }) {
         // 第一行：歌曲名
         Text(this.item.name)
@@ -53,14 +53,9 @@ export struct MusicListItem {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      .onClick(() => {
-        if (this.onClickItem) {
-          this.onClickItem();
-        }
-      })
 
-      // 右侧操作区：原生矢量下载图标与更多按钮
-      Row({ space: 6 }) {
+      // 右侧操作区：下载按钮与更多按钮
+      Row({ space: 8 }) {
         Button({ type: ButtonType.Circle }) {
           Image(this.isDownloaded ? $r('app.media.ic_checked') : $r('app.media.ic_download'))
             .width(16)
@@ -96,5 +91,11 @@ export struct MusicListItem {
     .padding({ left: 16, right: 12 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor('#FFFFFF')
+    // 关键优化：整行任意非按钮区域点击均触发播放！
+    .onClick(() => {
+      if (this.onClickItem) {
+        this.onClickItem();
+      }
+    })
   }
 }
