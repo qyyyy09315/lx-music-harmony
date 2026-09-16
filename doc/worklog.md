@@ -120,3 +120,8 @@
 ### 13. 移动端极简纯文本列表排版重构 (Sprint 9)
 * **移除冗余缩略图**：重构 `MusicListItem.ets` 为经典紧凑纯文字排版，第一行歌名加粗高亮、第二行展示音源徽章 `[WY/KW/KG]` + 音质徽章 `[SQ]` + `歌手 · 专辑`。
 * **极速加载体验**：彻底去除重复的占位封面图，提升首屏渲染帧率与信息密度，全量编译验证通过 (**BUILD SUCCESSFUL in 1.8s**)。
+
+### 14. 全局矢量图标重构与彻底告别 Emoji (Sprint 10)
+* **原生 SVG 矢量图标库**：在 `entry/src/main/resources/base/media/` 内置 20 个高精度矢量图标（`ic_search`、`ic_play`、`ic_pause`、`ic_prev`、`ic_next`、`ic_loop_list`、`ic_loop_single`、`ic_loop_random`、`ic_playlist`、`ic_download`、`ic_more`、`ic_equalizer`、`ic_theme`、`ic_trash`、`ic_checked`、`ic_close` 等）。
+* **全量去除 Emoji**：彻底清理主页、底部迷你播放栏、全屏播放器与弹窗中的粗糙 Emoji 字符，全面接入原生矢量图标并支持动态主题色渲染。
+* **全量构建验证**：全量 33 个编译打包任务 **0 Error 全部通过 (BUILD SUCCESSFUL in 2.7s)**。

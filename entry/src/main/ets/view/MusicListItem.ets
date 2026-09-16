@@ -2,7 +2,7 @@ import { MusicItem } from '../model/MusicModel';
 import { DownloadManagerService } from '../services/DownloadManagerService';
 
 /**
- * 洛雪音乐 原版纯文本极简歌曲列表项
+ * 洛雪音乐 原版纯文字极简歌曲列表项 (零缩略图、原生矢量图标)
  */
 @Component
 export struct MusicListItem {
@@ -16,7 +16,7 @@ export struct MusicListItem {
 
   build() {
     Row() {
-      // 歌曲核心文本区域 (纯文字排版，无多余重复缩略图)
+      // 歌曲核心文本区域 (纯文字排版，彻底去除多余方形缩略图)
       Column({ space: 4 }) {
         // 第一行：歌曲名
         Text(this.item.name)
@@ -28,7 +28,6 @@ export struct MusicListItem {
 
         // 第二行：音源 Tag + 音质 Tag + 歌手 · 专辑
         Row({ space: 5 }) {
-          // 音源平台标签 (如 WY / KW / KG)
           if (this.item.source) {
             Text(this.item.source.toUpperCase())
               .fontSize(9)
@@ -37,14 +36,12 @@ export struct MusicListItem {
               .padding({ left: 3, right: 3, top: 1, bottom: 1 })
           }
 
-          // 音质标签 (默认 SQ / 320k)
           Text('SQ')
             .fontSize(9)
             .fontColor('#FF6600')
             .border({ width: 0.8, color: '#FF6600', radius: 2 })
             .padding({ left: 3, right: 3, top: 1, bottom: 1 })
 
-          // 歌手与专辑
           Text(`${this.item.singer}${this.item.album ? ' · ' + this.item.album : ''}`)
             .fontSize(12)
             .fontColor('#8F959E')
@@ -62,30 +59,31 @@ export struct MusicListItem {
         }
       })
 
-      // 右侧操作区：下载按钮与更多按钮
-      Row({ space: 8 }) {
+      // 右侧操作区：原生矢量下载图标与更多按钮
+      Row({ space: 6 }) {
         Button({ type: ButtonType.Circle }) {
-          Text(this.isDownloaded ? '✓' : '⬇')
-            .fontSize(13)
-            .fontColor(this.isDownloaded ? '#07C160' : '#8F959E')
+          Image(this.isDownloaded ? $r('app.media.ic_checked') : $r('app.media.ic_download'))
+            .width(16)
+            .height(16)
+            .fillColor(this.isDownloaded ? '#07C160' : '#8F959E')
         }
-        .width(30)
-        .height(30)
-        .backgroundColor('#F5F6F8')
+        .width(32)
+        .height(32)
+        .backgroundColor(Color.Transparent)
         .onClick(async () => {
           this.isDownloaded = true;
           await this.downloadService.addTask(this.item);
         })
 
         Button({ type: ButtonType.Circle }) {
-          Text('···')
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#8F959E')
+          Image($r('app.media.ic_more'))
+            .width(16)
+            .height(16)
+            .fillColor('#8F959E')
         }
-        .width(30)
-        .height(30)
-        .backgroundColor('#F5F6F8')
+        .width(32)
+        .height(32)
+        .backgroundColor(Color.Transparent)
         .onClick(() => {
           if (this.onMoreClick) {
             this.onMoreClick(this.item);
@@ -94,8 +92,8 @@ export struct MusicListItem {
       }
     }
     .width('100%')
-    .height(58)
-    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+    .height(56)
+    .padding({ left: 16, right: 12 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor('#FFFFFF')
   }

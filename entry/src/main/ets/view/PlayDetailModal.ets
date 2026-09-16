@@ -16,7 +16,6 @@ export struct PlayDetailModal {
   @State private showLyric: boolean = false;
   @State private isDraggingSlider: boolean = false;
   @State private sliderValue: number = 0;
-  @State private rotateAngle: number = 0;
   @State private showPlaylistDrawer: boolean = false;
   @State private showQualityModal: boolean = false;
   @State private currentQuality: MusicQuality = '320k';
@@ -30,17 +29,33 @@ export struct PlayDetailModal {
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   }
 
+  private getPlayModeIcon(): Resource {
+    switch (this.playMode) {
+      case PlayMode.LIST_LOOP:
+        return $r('app.media.ic_loop_list');
+      case PlayMode.SINGLE_LOOP:
+        return $r('app.media.ic_loop_single');
+      case PlayMode.RANDOM:
+        return $r('app.media.ic_loop_random');
+    }
+  }
+
   build() {
     Column() {
       // 顶部导航与收起按钮
       Row() {
-        Button('收起')
-          .fontSize(14)
-          .fontColor('#1F2329')
-          .backgroundColor('transparent')
-          .onClick(() => {
-            if (this.onClose) this.onClose();
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_close'))
+            .width(18)
+            .height(18)
+            .fillColor('#1F2329')
+        }
+        .width(36)
+        .height(36)
+        .backgroundColor(Color.Transparent)
+        .onClick(() => {
+          if (this.onClose) this.onClose();
+        })
 
         Column() {
           Text(this.currentMusic?.name || '未知歌曲')
@@ -60,7 +75,7 @@ export struct PlayDetailModal {
 
         Row({ space: 6 }) {
           Button(this.showLyric ? '封面' : '歌词')
-            .fontSize(13)
+            .fontSize(12)
             .fontColor('#07C160')
             .backgroundColor('#E8F8F0')
             .height(28)
@@ -83,12 +98,11 @@ export struct PlayDetailModal {
       .padding({ left: 16, right: 16 })
       .alignItems(VerticalAlign.Center)
 
-      // 主体内容 (封面或歌词)
+      // 主体内容 (纯净黑胶大唱片或实时滚动歌词)
       Column() {
         if (!this.showLyric) {
-          // 唱片旋转封面
           Column() {
-            Image(this.currentMusic?.pic || '')
+            Image(this.currentMusic?.pic || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=60')
               .width(260)
               .height(260)
               .borderRadius(130)
@@ -104,7 +118,6 @@ export struct PlayDetailModal {
             this.showLyric = true;
           })
         } else {
-          // 歌词滚动面板
           LyricView({
             lrcText: this.currentMusic?.lrc || '',
             currentTimeMs: this.currentTime,
@@ -160,60 +173,77 @@ export struct PlayDetailModal {
       .width('100%')
       .padding({ left: 20, right: 20, bottom: 12 })
 
-      // 播放控制栏
+      // 播放控制栏 (原生高精度矢量图标)
       Row() {
         // 循环模式
-        Button(this.playMode === PlayMode.LIST_LOOP ? '🔁 列表' : (this.playMode === PlayMode.SINGLE_LOOP ? '🔂 单曲' : '🔀 随机'))
-          .fontSize(12)
-          .height(36)
-          .fontColor('#1F2329')
-          .backgroundColor('#F2F3F5')
-          .onClick(() => {
-            this.playerService.togglePlayMode();
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image(this.getPlayModeIcon())
+            .width(22)
+            .height(22)
+            .fillColor('#1F2329')
+        }
+        .width(44)
+        .height(44)
+        .backgroundColor('#F2F3F5')
+        .onClick(() => {
+          this.playerService.togglePlayMode();
+        })
 
         // 上一首
-        Button('⏮️')
-          .fontSize(18)
-          .width(48)
-          .height(48)
-          .borderRadius(24)
-          .backgroundColor('#F2F3F5')
-          .onClick(() => {
-            this.playerService.playPrevious();
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_prev'))
+            .width(22)
+            .height(22)
+            .fillColor('#1F2329')
+        }
+        .width(48)
+        .height(48)
+        .backgroundColor('#F2F3F5')
+        .onClick(() => {
+          this.playerService.playPrevious();
+        })
 
         // 播放/暂停
-        Button(this.playState === PlayState.PLAYING ? '⏸️' : '▶️')
-          .fontSize(22)
-          .width(64)
-          .height(64)
-          .borderRadius(32)
-          .backgroundColor('#07C160')
-          .fontColor('#FFFFFF')
-          .onClick(() => {
-            this.playerService.togglePlay();
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image(this.playState === PlayState.PLAYING ? $r('app.media.ic_pause') : $r('app.media.ic_play'))
+            .width(26)
+            .height(26)
+            .fillColor(Color.White)
+        }
+        .width(64)
+        .height(64)
+        .backgroundColor('#07C160')
+        .onClick(() => {
+          this.playerService.togglePlay();
+        })
 
         // 下一首
-        Button('⏭️')
-          .fontSize(18)
-          .width(48)
-          .height(48)
-          .borderRadius(24)
-          .backgroundColor('#F2F3F5')
-          .onClick(() => {
-            this.playerService.playNext();
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_next'))
+            .width(22)
+            .height(22)
+            .fillColor('#1F2329')
+        }
+        .width(48)
+        .height(48)
+        .backgroundColor('#F2F3F5')
+        .onClick(() => {
+          this.playerService.playNext();
+        })
 
         // 播放列表
-        Button('📑')
-          .fontSize(16)
-          .height(36)
-          .backgroundColor('#F2F3F5')
-          .onClick(() => {
-            this.showPlaylistDrawer = true;
-          })
+        Button({ type: ButtonType.Circle }) {
+          Image($r('app.media.ic_playlist'))
+            .width(22)
+            .height(22)
+            .fillColor('#1F2329')
+        }
+        .width(44)
+        .height(44)
+        .backgroundColor('#F2F3F5')
+        .onClick(() => {
+          this.showPlaylistDrawer = true;
+        })
       }
       .width('100%')
       .justifyContent(FlexAlign.SpaceAround)

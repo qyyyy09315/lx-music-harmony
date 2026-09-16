@@ -195,52 +195,84 @@ struct Index {
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Row() {
-        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏
+        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏 (原生高精度矢量图标)
         if (this.curBreakpoint !== BreakpointConstants.BREAKPOINT_SM) {
           Column({ space: 14 }) {
-            Row({ space: 6 }) {
-              Text('🎵').fontSize(22)
+            Row({ space: 8 }) {
+              Image($r('app.media.ic_songlist'))
+                .width(22)
+                .height(22)
+                .fillColor(this.themeColors.primary)
               Text('洛雪音乐').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.themeColors.textPrimary)
             }
             .padding({ top: 20, bottom: 12 })
 
             Column({ space: 6 }) {
-              Button('🔍 搜索')
-                .width(110).height(40)
-                .backgroundColor(this.activeTabIndex === 0 ? this.themeColors.primaryLight : 'transparent')
-                .fontColor(this.activeTabIndex === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
-                .onClick(() => { this.activeTabIndex = 0; })
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 8 }) {
+                  Image($r('app.media.ic_search')).width(16).height(16).fillColor(this.activeTabIndex === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('搜索').fontSize(14).fontColor(this.activeTabIndex === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
+                }
+              }
+              .width(110).height(40).borderRadius(8)
+              .backgroundColor(this.activeTabIndex === 0 ? this.themeColors.primaryLight : 'transparent')
+              .onClick(() => { this.activeTabIndex = 0; })
 
-              Button('📑 歌单')
-                .width(110).height(40)
-                .backgroundColor(this.activeTabIndex === 1 ? this.themeColors.primaryLight : 'transparent')
-                .fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
-                .onClick(() => { this.activeTabIndex = 1; })
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 8 }) {
+                  Image($r('app.media.ic_songlist')).width(16).height(16).fillColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('歌单').fontSize(14).fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                }
+              }
+              .width(110).height(40).borderRadius(8)
+              .backgroundColor(this.activeTabIndex === 1 ? this.themeColors.primaryLight : 'transparent')
+              .onClick(() => { this.activeTabIndex = 1; })
 
-              Button('🏆 排行')
-                .width(110).height(40)
-                .backgroundColor(this.activeTabIndex === 2 ? this.themeColors.primaryLight : 'transparent')
-                .fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
-                .onClick(() => { this.activeTabIndex = 2; })
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 8 }) {
+                  Image($r('app.media.ic_leaderboard')).width(16).height(16).fillColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('排行').fontSize(14).fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                }
+              }
+              .width(110).height(40).borderRadius(8)
+              .backgroundColor(this.activeTabIndex === 2 ? this.themeColors.primaryLight : 'transparent')
+              .onClick(() => { this.activeTabIndex = 2; })
 
-              Button('❤️ 我的')
-                .width(110).height(40)
-                .backgroundColor(this.activeTabIndex === 3 ? this.themeColors.primaryLight : 'transparent')
-                .fontColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
-                .onClick(() => { this.activeTabIndex = 3; })
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 8 }) {
+                  Image($r('app.media.ic_mine')).width(16).height(16).fillColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('我的').fontSize(14).fontColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
+                }
+              }
+              .width(110).height(40).borderRadius(8)
+              .backgroundColor(this.activeTabIndex === 3 ? this.themeColors.primaryLight : 'transparent')
+              .onClick(() => { this.activeTabIndex = 3; })
 
-              Button('⚙️ 设置')
-                .width(110).height(40)
-                .backgroundColor(this.activeTabIndex === 4 ? this.themeColors.primaryLight : 'transparent')
-                .fontColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
-                .onClick(() => { this.activeTabIndex = 4; })
+              Button({ type: ButtonType.Normal }) {
+                Row({ space: 8 }) {
+                  Image($r('app.media.ic_setting')).width(16).height(16).fillColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('设置').fontSize(14).fontColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
+                }
+              }
+              .width(110).height(40).borderRadius(8)
+              .backgroundColor(this.activeTabIndex === 4 ? this.themeColors.primaryLight : 'transparent')
+              .onClick(() => { this.activeTabIndex = 4; })
             }
 
             Blank()
 
             Row({ space: 8 }) {
-              Button('🎛️').fontSize(14).width(36).height(36).backgroundColor(this.themeColors.cardBackground).onClick(() => { this.isShowEqualizerModal = true; })
-              Button('🎨').fontSize(14).width(36).height(36).backgroundColor(this.themeColors.cardBackground).onClick(() => { this.isShowThemeModal = true; })
+              Button({ type: ButtonType.Circle }) {
+                Image($r('app.media.ic_equalizer')).width(16).height(16).fillColor(this.themeColors.textPrimary)
+              }
+              .width(36).height(36).backgroundColor(this.themeColors.cardBackground)
+              .onClick(() => { this.isShowEqualizerModal = true; })
+
+              Button({ type: ButtonType.Circle }) {
+                Image($r('app.media.ic_theme')).width(16).height(16).fillColor(this.themeColors.textPrimary)
+              }
+              .width(36).height(36).backgroundColor(this.themeColors.cardBackground)
+              .onClick(() => { this.isShowThemeModal = true; })
             }
             .padding({ bottom: 20 })
           }
@@ -252,7 +284,7 @@ struct Index {
 
         // 主内容区
         Column() {
-          // 手机端顶部标题栏
+          // 手机端顶部标题栏 (原生高精度矢量图标)
           if (this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM) {
             Row() {
               Text('洛雪音乐')
@@ -263,13 +295,23 @@ struct Index {
               Blank()
 
               Row({ space: 8 }) {
-                Button({ type: ButtonType.Circle }) { Text('🎛️').fontSize(13) }
-                  .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
-                  .onClick(() => { this.isShowEqualizerModal = true; })
+                Button({ type: ButtonType.Circle }) {
+                  Image($r('app.media.ic_equalizer'))
+                    .width(16)
+                    .height(16)
+                    .fillColor(this.themeColors.textPrimary)
+                }
+                .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => { this.isShowEqualizerModal = true; })
 
-                Button({ type: ButtonType.Circle }) { Text('🎨').fontSize(13) }
-                  .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
-                  .onClick(() => { this.isShowThemeModal = true; })
+                Button({ type: ButtonType.Circle }) {
+                  Image($r('app.media.ic_theme'))
+                    .width(16)
+                    .height(16)
+                    .fillColor(this.themeColors.textPrimary)
+                }
+                .width(32).height(32).backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => { this.isShowThemeModal = true; })
 
                 Text(this.activeSource ? this.activeSource.name : '内置源')
                   .fontSize(11)
@@ -287,10 +329,14 @@ struct Index {
             .backgroundColor(this.themeColors.background)
           }
 
-          // 全局悬浮歌词条
+          // 全局悬浮歌词条 (纯文字发光胶囊)
           if (this.isFloatLyricOn) {
             Row({ space: 8 }) {
-              Text('🎵').fontSize(13)
+              Image($r('app.media.ic_songlist'))
+                .width(14)
+                .height(14)
+                .fillColor(this.themeColors.primary)
+
               Text(this.floatingLyricText)
                 .fontSize(13)
                 .fontWeight(FontWeight.Medium)
@@ -377,7 +423,7 @@ struct Index {
                 .scrollBar(BarState.Off)
                 .width('100%')
 
-                // 搜索结果列表 (带稳定 Key 与无跳动渲染)
+                // 搜索结果列表 (纯文字排版，绝无缩略图与闪烁)
                 if (this.isSearching) {
                   Row({ space: 8 }) {
                     LoadingProgress().width(20).height(20).color(this.themeColors.primary)
@@ -406,10 +452,14 @@ struct Index {
                   }
                   .layoutWeight(1)
                   .width('100%')
-                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                 } else if (!this.isSearching) {
                   Column({ space: 8 }) {
-                    Text('🔍').fontSize(40).margin({ top: 60 })
+                    Image($r('app.media.ic_search'))
+                      .width(40)
+                      .height(40)
+                      .fillColor(this.themeColors.textSecondary)
+                      .margin({ top: 60 })
                     Text('输入歌名即刻开启全网多源检索').fontSize(14).fontColor(this.themeColors.textSecondary)
                   }
                   .width('100%')
@@ -440,23 +490,17 @@ struct Index {
                 .width('100%')
                 .padding({ left: 16, right: 16, top: 12, bottom: 8 })
 
-                // 歌单网格卡片
-                List({ space: 12 }) {
+                // 歌单列表 (纯文字排版)
+                List({ space: 8 }) {
                   ForEach(this.songLists, (sl: SongListInfo) => {
                     ListItem() {
-                      Row({ space: 12 }) {
-                        Image(sl.cover)
-                          .width(80)
-                          .height(80)
-                          .borderRadius(8)
-                          .backgroundColor('#F2F3F5')
-
+                      Row() {
                         Column({ space: 4 }) {
                           Text(sl.name)
                             .fontSize(15)
                             .fontWeight(FontWeight.Bold)
                             .fontColor(this.themeColors.textPrimary)
-                            .maxLines(2)
+                            .maxLines(1)
                             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
                           Text(sl.desc || '')
@@ -466,9 +510,9 @@ struct Index {
                             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
                           Row({ space: 8 }) {
-                            Text(`🔥 ${sl.playCount}`)
+                            Text(`播放量: ${sl.playCount}`)
                               .fontSize(11)
-                              .fontColor('#FF6600')
+                              .fontColor(this.themeColors.primary)
                             Text(`作者: ${sl.author}`)
                               .fontSize(11)
                               .fontColor(this.themeColors.textSecondary)
@@ -476,9 +520,18 @@ struct Index {
                         }
                         .alignItems(HorizontalAlign.Start)
                         .layoutWeight(1)
+
+                        Button({ type: ButtonType.Circle }) {
+                          Image($r('app.media.ic_play'))
+                            .width(14)
+                            .height(14)
+                            .fillColor(this.themeColors.primary)
+                        }
+                        .width(32).height(32)
+                        .backgroundColor(this.themeColors.primaryLight)
                       }
                       .width('100%')
-                      .padding({ left: 16, right: 16 })
+                      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
                       .onClick(() => {
                         this.selectedSongList = sl;
                         this.isShowSongListDetail = true;
@@ -488,6 +541,7 @@ struct Index {
                 }
                 .layoutWeight(1)
                 .width('100%')
+                .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
               }
               .width('100%')
               .height('100%')
@@ -518,7 +572,7 @@ struct Index {
                 .scrollBar(BarState.Off)
                 .width('100%')
 
-                // 当前选中榜单的 Top 歌曲列表
+                // 当前选中榜单的 Top 歌曲列表 (纯文字排版)
                 if (this.leaderboards.length > 0) {
                   List() {
                     ForEach(this.leaderboards[this.selectedLeaderboardIndex].list, (item: MusicItem, idx: number) => {
@@ -528,7 +582,7 @@ struct Index {
                             .fontSize(16)
                             .fontWeight(FontWeight.Bold)
                             .fontColor(idx === 0 ? '#FF3B30' : (idx === 1 ? '#FF9500' : (idx === 2 ? '#FFCC00' : this.themeColors.textSecondary)))
-                            .width(36)
+                            .width(32)
                             .textAlign(TextAlign.Center)
 
                           MusicListItem({
@@ -551,7 +605,7 @@ struct Index {
                   }
                   .layoutWeight(1)
                   .width('100%')
-                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 90 })
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 48 })
                 }
               }
               .width('100%')
@@ -594,7 +648,11 @@ struct Index {
                 if (this.myActiveSubTab === 0) {
                   if (this.myCollectionList.length === 0) {
                     Column({ space: 8 }) {
-                      Text('🎧').fontSize(44).margin({ top: 60 })
+                      Image($r('app.media.ic_mine'))
+                        .width(40)
+                        .height(40)
+                        .fillColor(this.themeColors.textSecondary)
+                        .margin({ top: 60 })
                       Text('暂无收藏歌曲').fontSize(14).fontColor(this.themeColors.textSecondary)
                     }
                     .width('100%')
@@ -619,15 +677,13 @@ struct Index {
                     }
                     .layoutWeight(1)
                     .width('100%')
+                    .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                   }
                 } else if (this.myActiveSubTab === 1) {
                   List({ space: 8 }) {
                     ForEach(this.customPlaylists, (pl: CustomPlaylist) => {
                       ListItem() {
                         Row() {
-                          Image(pl.cover || '')
-                            .width(52).height(52).borderRadius(8).backgroundColor('#F2F3F5').margin({ right: 12 })
-
                           Column({ space: 4 }) {
                             Text(pl.name).fontSize(15).fontWeight(FontWeight.Medium).fontColor(this.themeColors.textPrimary)
                             Text(`${pl.list.length} 首歌曲 · ${pl.desc || '自建私享歌单'}`)
@@ -648,12 +704,13 @@ struct Index {
                             })
                         }
                         .width('100%')
-                        .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+                        .padding({ left: 16, right: 16, top: 8, bottom: 8 })
                       }
                     }, (pl: CustomPlaylist) => pl.id)
                   }
                   .layoutWeight(1)
                   .width('100%')
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                 } else if (this.myActiveSubTab === 2) {
                   Column() {
                     Row() {
@@ -688,7 +745,7 @@ struct Index {
                     }
                     .layoutWeight(1)
                     .width('100%')
-                    .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
+                    .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                   }
                   .layoutWeight(1)
                   .width('100%')
@@ -719,6 +776,7 @@ struct Index {
                   }
                   .layoutWeight(1)
                   .width('100%')
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                 }
               }
               .width('100%')
@@ -849,14 +907,6 @@ struct Index {
               .fontColor(this.themeColors.textPrimary)
               .margin({ top: 16 })
 
-            // 黑胶唱片
-            Image(this.currentMusic?.pic || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=60')
-              .width(180)
-              .height(180)
-              .borderRadius(90)
-              .border({ width: 6, color: '#1A1A1A' })
-              .shadow({ radius: 16, color: '#26000000', offsetY: 8 })
-
             Column({ space: 2 }) {
               Text(this.currentMusic?.name || '静候天籁')
                 .fontSize(15)
@@ -870,7 +920,6 @@ struct Index {
                 .fontColor(this.themeColors.textSecondary)
             }
 
-            // 常驻滚动歌词
             LyricView({
               lrcText: this.currentMusic?.lrc || '',
               currentTimeMs: this.currentTime,
@@ -894,15 +943,19 @@ struct Index {
       // 底部迷你悬浮播放条 (点击展开全屏播放器)
       if (this.currentMusic) {
         Row() {
-          Image(this.currentMusic.pic || '')
-            .width(42)
-            .height(42)
-            .borderRadius(21)
-            .margin({ right: 12 })
-            .backgroundColor('#E4E6EB')
-            .onClick(() => {
-              this.isShowPlayDetail = true;
-            })
+          Button({ type: ButtonType.Circle }) {
+            Image($r('app.media.ic_songlist'))
+              .width(18)
+              .height(18)
+              .fillColor(this.themeColors.primary)
+          }
+          .width(38)
+          .height(38)
+          .backgroundColor(this.themeColors.primaryLight)
+          .margin({ right: 12 })
+          .onClick(() => {
+            this.isShowPlayDetail = true;
+          })
 
           Column({ space: 2 }) {
             Text(this.currentMusic.name)
@@ -924,16 +977,18 @@ struct Index {
             this.isShowPlayDetail = true;
           })
 
-          Button(this.playState === PlayState.PLAYING ? '⏸' : '▶')
-            .fontSize(16)
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .backgroundColor(this.themeColors.primary)
-            .fontColor('#FFFFFF')
-            .onClick(() => {
-              this.playerService.togglePlay();
-            })
+          Button({ type: ButtonType.Circle }) {
+            Image(this.playState === PlayState.PLAYING ? $r('app.media.ic_pause') : $r('app.media.ic_play'))
+              .width(18)
+              .height(18)
+              .fillColor(Color.White)
+          }
+          .width(36)
+          .height(36)
+          .backgroundColor(this.themeColors.primary)
+          .onClick(() => {
+            this.playerService.togglePlay();
+          })
         }
         .width('100%')
         .height(60)

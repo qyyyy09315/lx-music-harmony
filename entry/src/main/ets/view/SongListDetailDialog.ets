@@ -12,17 +12,11 @@ export struct SongListDetailDialog {
 
   build() {
     Column() {
-      // 头部封面与简介
+      // 头部歌单信息 (纯文字排版)
       Row({ space: 14 }) {
-        Image(this.songListInfo?.cover || '')
-          .width(90)
-          .height(90)
-          .borderRadius(10)
-          .backgroundColor('#F2F3F5')
-
         Column({ space: 6 }) {
           Text(this.songListInfo?.name || '歌单详情')
-            .fontSize(16)
+            .fontSize(17)
             .fontWeight(FontWeight.Bold)
             .fontColor('#1F2329')
             .maxLines(2)
@@ -48,9 +42,10 @@ export struct SongListDetailDialog {
       Row() {
         Button({ type: ButtonType.Capsule }) {
           Row({ space: 6 }) {
-            Text('▶')
-              .fontSize(12)
-              .fontColor(Color.White)
+            Image($r('app.media.ic_play'))
+              .width(13)
+              .height(13)
+              .fillColor(Color.White)
             Text(`播放全部 (${this.songListInfo?.list.length || 0})`)
               .fontSize(13)
               .fontColor(Color.White)
@@ -82,7 +77,7 @@ export struct SongListDetailDialog {
         .color('#F2F3F5')
         .strokeWidth(0.5)
 
-      // 歌曲列表
+      // 歌曲列表 (纯文字排版)
       List() {
         ForEach(this.songListInfo?.list || [], (item: MusicItem, idx: number) => {
           ListItem() {
@@ -100,11 +95,11 @@ export struct SongListDetailDialog {
               }
             })
           }
-        })
+        }, (item: MusicItem) => item.id)
       }
       .layoutWeight(1)
       .width('100%')
-      .divider({ strokeWidth: 0.5, color: '#F2F3F5', startMargin: 72 })
+      .divider({ strokeWidth: 0.5, color: '#F2F3F5', startMargin: 16 })
     }
     .width('100%')
     .height('80%')

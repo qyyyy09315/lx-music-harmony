@@ -69,10 +69,10 @@ export struct QualitySelectDialog {
               .layoutWeight(1)
 
               if (this.currentQuality === q.type) {
-                Text('✓')
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#07C160')
+                Image($r('app.media.ic_checked'))
+                  .width(18)
+                  .height(18)
+                  .fillColor('#07C160')
               }
             }
             .width('100%')

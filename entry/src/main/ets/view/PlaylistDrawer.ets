@@ -2,7 +2,7 @@ import { MusicItem, PlayMode, PlayState } from '../model/MusicModel';
 import { AudioPlayerService } from '../services/AudioPlayerService';
 
 /**
- * 播放列表浮层抽屉组件
+ * 播放列表浮层抽屉组件 (原生矢量图标)
  */
 @Component
 export struct PlaylistDrawer {
@@ -41,6 +41,17 @@ export struct PlaylistDrawer {
     }
   }
 
+  private getModeIcon(): Resource {
+    switch (this.playMode) {
+      case PlayMode.LIST_LOOP:
+        return $r('app.media.ic_loop_list');
+      case PlayMode.SINGLE_LOOP:
+        return $r('app.media.ic_loop_single');
+      case PlayMode.RANDOM:
+        return $r('app.media.ic_loop_random');
+    }
+  }
+
   build() {
     Column() {
       // 顶部抓手与标题区
@@ -54,11 +65,17 @@ export struct PlaylistDrawer {
 
         Row() {
           // 播放模式切换
-          Row({ space: 6 }) {
+          Row({ space: 8 }) {
+            Image(this.getModeIcon())
+              .width(18)
+              .height(18)
+              .fillColor(Color.White)
+
             Text(this.getModeText())
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor(Color.White)
+
             Text(`(${this.playList.length})`)
               .fontSize(13)
               .fontColor('#88FFFFFF')
@@ -72,6 +89,10 @@ export struct PlaylistDrawer {
           // 清空按钮
           Button({ type: ButtonType.Normal }) {
             Row({ space: 4 }) {
+              Image($r('app.media.ic_trash'))
+                .width(15)
+                .height(15)
+                .fillColor('#AAFFFFFF')
               Text('清空')
                 .fontSize(13)
                 .fontColor('#AAFFFFFF')
@@ -90,11 +111,13 @@ export struct PlaylistDrawer {
         .color('#1AFFFFFF')
         .strokeWidth(0.5)
 
-      // 歌曲列表区域
+      // 歌曲列表区域 (纯文字排版)
       if (this.playList.length === 0) {
         Column({ space: 12 }) {
-          Text('🎵')
-            .fontSize(40)
+          Image($r('app.media.ic_songlist'))
+            .width(36)
+            .height(36)
+            .fillColor('#66FFFFFF')
             .margin({ top: 60 })
           Text('播放队列暂无歌曲')
             .fontSize(14)
@@ -107,12 +130,13 @@ export struct PlaylistDrawer {
           ForEach(this.playList, (item: MusicItem, index: number) => {
             ListItem() {
               Row() {
-                // 正在播放波形标识或序号
+                // 正在播放标识或序号
                 if (this.currentMusic && this.currentMusic.id === item.id) {
-                  Text('▶')
-                    .fontSize(12)
-                    .fontColor('#07C160')
-                    .width(28)
+                  Image($r('app.media.ic_play'))
+                    .width(14)
+                    .height(14)
+                    .fillColor('#07C160')
+                    .margin({ right: 14 })
                 } else {
                   Text(`${index + 1}`)
                     .fontSize(13)
@@ -143,9 +167,10 @@ export struct PlaylistDrawer {
 
                 // 删除单曲按钮
                 Button({ type: ButtonType.Circle }) {
-                  Text('×')
-                    .fontSize(18)
-                    .fontColor('#66FFFFFF')
+                  Image($r('app.media.ic_close'))
+                    .width(14)
+                    .height(14)
+                    .fillColor('#66FFFFFF')
                 }
                 .width(32)
                 .height(32)
