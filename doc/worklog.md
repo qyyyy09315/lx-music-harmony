@@ -77,3 +77,14 @@
   * 引入「收藏」、「本地音乐」、「下载」三段式 Segment 视图切换，支持一键扫描与离线曲库一键播放。
 * **歌曲卡片 (`MusicListItem.ets`) 升级**：
   * 增加下载快速操作入口与已下载视觉状态反馈。
+
+### 9. 响应式布局、自定义歌单与 5 频段音效均衡器 (Sprint 5)
+* **多设备响应式断点系统 (`BreakpointSystem.ets`)**：
+  * 基于 `@ohos.mediaquery` 实现 `sm` / `md` / `lg` 三档动态断点监听；
+  * 小屏 (sm) 保持经典底部 TabBar，大屏 (md/lg) 自适应切换为左侧侧边栏 Navigation Rail；
+  * 宽屏 (lg) 实现双栏沉浸式排版：左侧列表浏览、右侧常驻大黑胶唱片与实时居中歌词。
+* **自定义歌单管理体系 (`PlaylistManagerService.ets`)**：
+  * 具备自定义歌单新建、重命名、封面管理、歌曲归纳及 JSON 导入/导出能力；
+  * 增加 `AddToPlaylistDialog.ets` 半模态归纳弹窗。
+* **5 频段音效均衡器 (`EqualizerService.ets` & `EqualizerDialog.ets`)**：
+  * 提供 60Hz、230Hz、910Hz、3.6kHz、14kHz 增益调节，支持流行、摇滚、人声、古典等预设音效、低音增强与 3D 空间环绕声。

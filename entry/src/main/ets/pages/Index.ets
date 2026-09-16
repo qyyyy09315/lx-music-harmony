@@ -6,9 +6,15 @@ import { SyncService, SyncConnectionState, SyncReport } from '../services/SyncSe
 import { ThemeService, ThemeMode, ThemeColorSet, ThemePreset } from '../services/ThemeService';
 import { LocalMusicService } from '../services/LocalMusicService';
 import { DownloadManagerService, DownloadTask } from '../services/DownloadManagerService';
+import { PlaylistManagerService, CustomPlaylist } from '../services/PlaylistManagerService';
+import { EqualizerService } from '../services/EqualizerService';
+import { BreakpointSystem, BreakpointType, BreakpointConstants } from '../common/BreakpointSystem';
 import { MusicItem, PlayMode, PlayState, UserSourceScriptInfo } from '../model/MusicModel';
 import { MusicListItem } from '../view/MusicListItem';
 import { PlayDetailModal } from '../view/PlayDetailModal';
+import { EqualizerDialog } from '../view/EqualizerDialog';
+import { AddToPlaylistDialog } from '../view/AddToPlaylistDialog';
+import { LyricView } from '../view/LyricView';
 
 @Entry
 @Component
@@ -20,10 +26,20 @@ struct Index {
   @State totalTime: number = 0;
   @State playMode: PlayMode = PlayMode.LIST_LOOP;
 
+  // 响应式断点系统 (sm / md / lg)
+  @State curBreakpoint: BreakpointType = BreakpointConstants.BREAKPOINT_SM;
+  private breakpointSystem: BreakpointSystem = new BreakpointSystem();
+
   // 主题与色彩
   @State themeColors: ThemeColorSet = ThemeService.getInstance().getColors();
   @State currentThemeMode: ThemeMode = ThemeMode.LIGHT;
   @State isShowThemeModal: boolean = false;
+
+  // 歌单与音效弹窗控制
+  @State isShowEqualizerModal: boolean = false;
+  @State isShowAddToPlaylistModal: boolean = false;
+  @State targetMusicForPlaylist: MusicItem | null = null;
+  @State customPlaylists: CustomPlaylist[] = [];
 
   // 推荐歌曲列表
   @State recommendList: MusicItem[] = [
@@ -65,7 +81,7 @@ struct Index {
   @State myCollectionList: MusicItem[] = [];
   @State localMusicList: MusicItem[] = [];
   @State downloadTaskList: DownloadTask[] = [];
-  @State myActiveSubTab: number = 0; // 0: 收藏, 1: 本地, 2: 下载
+  @State myActiveSubTab: number = 0; // 0: 收藏, 1: 本地, 2: 歌单, 3: 下载
   @State isScanningLocal: boolean = false;
 
   @State isShowPlayDetail: boolean = false;
@@ -99,10 +115,16 @@ struct Index {
   private themeService: ThemeService = ThemeService.getInstance();
   private localMusicService: LocalMusicService = LocalMusicService.getInstance();
   private downloadService: DownloadManagerService = DownloadManagerService.getInstance();
+  private plService: PlaylistManagerService = PlaylistManagerService.getInstance();
 
   aboutToAppear() {
     this.storageService.init(getContext(this));
     this.floatLyricService.init(getContext(this) as any);
+
+    // 注册断点系统
+    this.breakpointSystem.register((bp: BreakpointType) => {
+      this.curBreakpoint = bp;
+    });
 
     this.playerService.onStateChange((state: PlayState) => {
       this.playState = state;
@@ -142,6 +164,10 @@ struct Index {
       this.downloadTaskList = [...tasks];
     });
 
+    this.plService.onPlaylistsChange((playlists: CustomPlaylist[]) => {
+      this.customPlaylists = [...playlists];
+    });
+
     const cfg = this.syncService.getConfig();
     this.syncHost = cfg.host;
     this.syncPort = cfg.port;
@@ -151,6 +177,11 @@ struct Index {
     this.loadSources();
     this.localMusicList = this.localMusicService.getLocalMusicList();
     this.downloadTaskList = this.downloadService.getAllTasks();
+    this.customPlaylists = this.plService.getAllPlaylists();
+  }
+
+  aboutToDisappear() {
+    this.breakpointSystem.unregister();
   }
 
   private async loadCollections() {
@@ -186,303 +217,195 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      Column() {
-        // 顶部标题栏
-        Row() {
-          Text('洛雪音乐')
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.themeColors.textPrimary)
-
-          Blank()
-
-          Row({ space: 8 }) {
-            // 主题切换入口
-            Button({ type: ButtonType.Circle }) {
-              Text('🎨')
-                .fontSize(14)
+      Row() {
+        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏
+        if (this.curBreakpoint !== BreakpointConstants.BREAKPOINT_SM) {
+          Column({ space: 16 }) {
+            // App 图标与标题
+            Row({ space: 6 }) {
+              Text('🎵')
+                .fontSize(22)
+              Text('洛雪音乐')
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.themeColors.textPrimary)
             }
-            .width(32)
-            .height(32)
-            .backgroundColor(this.themeColors.cardBackground)
-            .onClick(() => {
-              this.isShowThemeModal = true;
-            })
+            .padding({ top: 20, bottom: 12 })
 
-            // 当前音源入口
-            Text(this.activeSource ? this.activeSource.name : '内置源')
-              .fontSize(11)
-              .fontColor(this.themeColors.primary)
-              .backgroundColor(this.themeColors.primaryLight)
-              .padding({ left: 8, right: 8, top: 5, bottom: 5 })
-              .borderRadius(12)
-              .onClick(() => {
-                this.isShowSourceModal = true;
-              })
+            // 侧边栏导航按钮列表
+            Column({ space: 8 }) {
+              Button('发现')
+                .width(110)
+                .height(40)
+                .backgroundColor(this.activeTabIndex === 0 ? this.themeColors.primaryLight : 'transparent')
+                .fontColor(this.activeTabIndex === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
+                .onClick(() => { this.activeTabIndex = 0; })
+
+              Button('我的')
+                .width(110)
+                .height(40)
+                .backgroundColor(this.activeTabIndex === 1 ? this.themeColors.primaryLight : 'transparent')
+                .fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                .onClick(() => { this.activeTabIndex = 1; })
+
+              Button('搜索')
+                .width(110)
+                .height(40)
+                .backgroundColor(this.activeTabIndex === 2 ? this.themeColors.primaryLight : 'transparent')
+                .fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                .onClick(() => { this.activeTabIndex = 2; })
+
+              Button('设置')
+                .width(110)
+                .height(40)
+                .backgroundColor(this.activeTabIndex === 3 ? this.themeColors.primaryLight : 'transparent')
+                .fontColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
+                .onClick(() => { this.activeTabIndex = 3; })
+            }
+
+            Blank()
+
+            // 底部快捷音效与主题入口
+            Row({ space: 8 }) {
+              Button('🎛️')
+                .fontSize(14)
+                .width(36)
+                .height(36)
+                .backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => { this.isShowEqualizerModal = true; })
+
+              Button('🎨')
+                .fontSize(14)
+                .width(36)
+                .height(36)
+                .backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => { this.isShowThemeModal = true; })
+            }
+            .padding({ bottom: 20 })
           }
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 16, right: 16 })
-        .alignItems(VerticalAlign.Center)
-        .backgroundColor(this.themeColors.background)
-
-        // 全局悬浮歌词胶囊条
-        if (this.isFloatLyricOn) {
-          Row({ space: 8 }) {
-            Text('🎵')
-              .fontSize(13)
-            Text(this.floatingLyricText)
-              .fontSize(13)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(this.themeColors.primary)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-          .width('92%')
-          .height(34)
-          .margin({ top: 4, bottom: 4 })
-          .padding({ left: 14, right: 14 })
-          .backgroundColor(this.themeColors.primaryLight)
-          .borderRadius(17)
-          .justifyContent(FlexAlign.Center)
+          .width(130)
+          .height('100%')
+          .backgroundColor(this.themeColors.cardBackground)
+          .border({ width: { right: 1 }, color: this.themeColors.divider })
         }
 
-        // 主体 Tab 页面
-        Tabs({ index: this.activeTabIndex, barPosition: BarPosition.End }) {
-          // Tab 1: 发现
-          TabContent() {
-            Column() {
-              Row() {
-                Text('今日推荐')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.themeColors.textPrimary)
+        // 主内容区域
+        Column() {
+          // 手机端顶部标题栏 (小屏显示)
+          if (this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM) {
+            Row() {
+              Text('洛雪音乐')
+                .fontSize(22)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.themeColors.textPrimary)
 
-                Blank()
+              Blank()
 
-                Button('播放全部')
-                  .fontSize(12)
+              Row({ space: 8 }) {
+                // 音效入口
+                Button({ type: ButtonType.Circle }) {
+                  Text('🎛️')
+                    .fontSize(13)
+                }
+                .width(32)
+                .height(32)
+                .backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => {
+                  this.isShowEqualizerModal = true;
+                })
+
+                // 主题入口
+                Button({ type: ButtonType.Circle }) {
+                  Text('🎨')
+                    .fontSize(13)
+                }
+                .width(32)
+                .height(32)
+                .backgroundColor(this.themeColors.cardBackground)
+                .onClick(() => {
+                  this.isShowThemeModal = true;
+                })
+
+                // 音源状态胶囊
+                Text(this.activeSource ? this.activeSource.name : '内置源')
+                  .fontSize(11)
                   .fontColor(this.themeColors.primary)
                   .backgroundColor(this.themeColors.primaryLight)
-                  .height(28)
+                  .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+                  .borderRadius(12)
                   .onClick(() => {
-                    this.playerService.setPlayList(this.recommendList, 0);
+                    this.isShowSourceModal = true;
                   })
-              }
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-
-              List() {
-                ForEach(this.recommendList, (item: MusicItem) => {
-                  ListItem() {
-                    MusicListItem({
-                      item: item,
-                      isPlaying: this.currentMusic?.id === item.id && this.playState === PlayState.PLAYING,
-                      onClickItem: () => {
-                        this.playerService.setPlayList(this.recommendList, this.recommendList.indexOf(item));
-                      }
-                    })
-                  }
-                })
-              }
-              .layoutWeight(1)
-              .width('100%')
-              .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
-            }
-            .width('100%')
-            .height('100%')
-            .backgroundColor(this.themeColors.background)
-          }
-          .tabBar('发现')
-
-          // Tab 2: 我的 (收藏 / 本地音乐 / 下载管理)
-          TabContent() {
-            Column() {
-              // 我的二级分类 Segment
-              Row({ space: 8 }) {
-                Button(`收藏 (${this.myCollectionList.length})`)
-                  .height(32)
-                  .fontSize(13)
-                  .backgroundColor(this.myActiveSubTab === 0 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-                  .fontColor(this.myActiveSubTab === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  .onClick(() => { this.myActiveSubTab = 0; })
-
-                Button(`本地音乐 (${this.localMusicList.length})`)
-                  .height(32)
-                  .fontSize(13)
-                  .backgroundColor(this.myActiveSubTab === 1 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-                  .fontColor(this.myActiveSubTab === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  .onClick(() => { this.myActiveSubTab = 1; })
-
-                Button(`下载 (${this.downloadTaskList.length})`)
-                  .height(32)
-                  .fontSize(13)
-                  .backgroundColor(this.myActiveSubTab === 2 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-                  .fontColor(this.myActiveSubTab === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  .onClick(() => { this.myActiveSubTab = 2; })
-              }
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-
-              // 列表视图呈现
-              if (this.myActiveSubTab === 0) {
-                // 收藏列表
-                if (this.myCollectionList.length === 0) {
-                  Column({ space: 8 }) {
-                    Text('🎧')
-                      .fontSize(44)
-                      .margin({ top: 60 })
-                    Text('暂无收藏歌曲')
-                      .fontSize(14)
-                      .fontColor(this.themeColors.textSecondary)
-                  }
-                  .width('100%')
-                  .layoutWeight(1)
-                } else {
-                  List() {
-                    ForEach(this.myCollectionList, (item: MusicItem) => {
-                      ListItem() {
-                        MusicListItem({
-                          item: item,
-                          isPlaying: this.currentMusic?.id === item.id,
-                          onClickItem: () => {
-                            this.playerService.setPlayList(this.myCollectionList, this.myCollectionList.indexOf(item));
-                          }
-                        })
-                      }
-                    })
-                  }
-                  .layoutWeight(1)
-                  .width('100%')
-                }
-              } else if (this.myActiveSubTab === 1) {
-                // 本地音乐列表
-                Column() {
-                  Row() {
-                    Text(`共 ${this.localMusicList.length} 首本地歌曲`)
-                      .fontSize(13)
-                      .fontColor(this.themeColors.textSecondary)
-                    Blank()
-                    Button(this.isScanningLocal ? '扫描中...' : '一键扫描曲库')
-                      .fontSize(12)
-                      .height(28)
-                      .backgroundColor(this.themeColors.primaryLight)
-                      .fontColor(this.themeColors.primary)
-                      .onClick(() => {
-                        this.handleScanLocal();
-                      })
-                  }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, bottom: 8 })
-
-                  List() {
-                    ForEach(this.localMusicList, (item: MusicItem) => {
-                      ListItem() {
-                        MusicListItem({
-                          item: item,
-                          isPlaying: this.currentMusic?.id === item.id,
-                          onClickItem: () => {
-                            this.playerService.setPlayList(this.localMusicList, this.localMusicList.indexOf(item));
-                          }
-                        })
-                      }
-                    })
-                  }
-                  .layoutWeight(1)
-                  .width('100%')
-                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
-                }
-                .layoutWeight(1)
-                .width('100%')
-              } else {
-                // 下载任务管理
-                List() {
-                  ForEach(this.downloadTaskList, (task: DownloadTask) => {
-                    ListItem() {
-                      Row() {
-                        Column({ space: 4 }) {
-                          Text(task.musicItem.name)
-                            .fontSize(14)
-                            .fontWeight(FontWeight.Medium)
-                            .fontColor(this.themeColors.textPrimary)
-                          Text(`${task.musicItem.singer} · ${task.quality.toUpperCase()} · 进度: ${task.progress}%`)
-                            .fontSize(11)
-                            .fontColor(this.themeColors.textSecondary)
-                        }
-                        .alignItems(HorizontalAlign.Start)
-                        .layoutWeight(1)
-
-                        Text(task.status === 'completed' ? '已完成' : '下载中')
-                          .fontSize(12)
-                          .fontColor(task.status === 'completed' ? this.themeColors.primary : '#FF9900')
-                          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                          .backgroundColor(this.themeColors.primaryLight)
-                          .borderRadius(4)
-                      }
-                      .width('100%')
-                      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-                    }
-                  })
-                }
-                .layoutWeight(1)
-                .width('100%')
               }
             }
             .width('100%')
-            .height('100%')
+            .height(56)
+            .padding({ left: 16, right: 16 })
+            .alignItems(VerticalAlign.Center)
             .backgroundColor(this.themeColors.background)
           }
-          .tabBar('我的')
 
-          // Tab 3: 搜索 (多源实时检索)
-          TabContent() {
-            Column() {
-              Row({ space: 8 }) {
-                Search({ value: this.searchKeyword, placeholder: '搜索音乐、歌手、歌曲名' })
-                  .layoutWeight(1)
-                  .height(40)
-                  .onChange((value: string) => {
-                    this.searchKeyword = value;
-                  })
-                  .onSubmit(() => {
-                    this.performSearch();
-                  })
+          // 全局悬浮歌词胶囊条
+          if (this.isFloatLyricOn) {
+            Row({ space: 8 }) {
+              Text('🎵')
+                .fontSize(13)
+              Text(this.floatingLyricText)
+                .fontSize(13)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(this.themeColors.primary)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .width('92%')
+            .height(34)
+            .margin({ top: 4, bottom: 4 })
+            .padding({ left: 14, right: 14 })
+            .backgroundColor(this.themeColors.primaryLight)
+            .borderRadius(17)
+            .justifyContent(FlexAlign.Center)
+          }
 
-                Button('搜索')
-                  .fontSize(14)
-                  .backgroundColor(this.themeColors.primary)
-                  .fontColor(Color.White)
-                  .height(38)
-                  .onClick(() => {
-                    this.performSearch();
-                  })
-              }
-              .width('94%')
-              .margin({ top: 8, bottom: 8 })
+          // 主体 Tab 页面 (根据断点决定是否显示底栏)
+          Tabs({
+            index: this.activeTabIndex,
+            barPosition: this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? BarPosition.End : BarPosition.Start
+          }) {
+            // Tab 1: 发现
+            TabContent() {
+              Column() {
+                Row() {
+                  Text('今日推荐')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.themeColors.textPrimary)
 
-              if (this.isSearching) {
-                Column({ space: 12 }) {
-                  LoadingProgress()
-                    .width(40)
-                    .height(40)
-                    .color(this.themeColors.primary)
-                    .margin({ top: 80 })
-                  Text('正在跨源搜索高品质音频...')
-                    .fontSize(13)
-                    .fontColor(this.themeColors.textSecondary)
+                  Blank()
+
+                  Button('播放全部')
+                    .fontSize(12)
+                    .fontColor(this.themeColors.primary)
+                    .backgroundColor(this.themeColors.primaryLight)
+                    .height(28)
+                    .onClick(() => {
+                      this.playerService.setPlayList(this.recommendList, 0);
+                    })
                 }
                 .width('100%')
-                .layoutWeight(1)
-              } else if (this.searchResultList.length > 0) {
+                .padding({ left: 16, right: 16, top: 12, bottom: 8 })
+
                 List() {
-                  ForEach(this.searchResultList, (item: MusicItem) => {
+                  ForEach(this.recommendList, (item: MusicItem) => {
                     ListItem() {
                       MusicListItem({
                         item: item,
                         isPlaying: this.currentMusic?.id === item.id && this.playState === PlayState.PLAYING,
-                        onClickItem: async () => {
-                          await this.playerService.playMusic(item);
+                        onClickItem: () => {
+                          this.playerService.setPlayList(this.recommendList, this.recommendList.indexOf(item));
+                        },
+                        onMoreClick: (it: MusicItem) => {
+                          this.targetMusicForPlaylist = it;
+                          this.isShowAddToPlaylistModal = true;
                         }
                       })
                     }
@@ -491,157 +414,473 @@ struct Index {
                 .layoutWeight(1)
                 .width('100%')
                 .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
-              } else {
-                Column({ space: 8 }) {
-                  Text('🔍')
-                    .fontSize(40)
-                    .margin({ top: 60 })
-                  Text('输入歌名即刻开启全网多源检索')
-                    .fontSize(14)
-                    .fontColor(this.themeColors.textSecondary)
+              }
+              .width('100%')
+              .height('100%')
+              .backgroundColor(this.themeColors.background)
+            }
+            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '发现' : '')
+
+            // Tab 2: 我的 (收藏 / 本地音乐 / 自建歌单 / 下载)
+            TabContent() {
+              Column() {
+                // 我的二级分类 Segment
+                Row({ space: 6 }) {
+                  Button(`收藏 (${this.myCollectionList.length})`)
+                    .height(32)
+                    .fontSize(12)
+                    .backgroundColor(this.myActiveSubTab === 0 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                    .fontColor(this.myActiveSubTab === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
+                    .onClick(() => { this.myActiveSubTab = 0; })
+
+                  Button(`本地 (${this.localMusicList.length})`)
+                    .height(32)
+                    .fontSize(12)
+                    .backgroundColor(this.myActiveSubTab === 1 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                    .fontColor(this.myActiveSubTab === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                    .onClick(() => { this.myActiveSubTab = 1; })
+
+                  Button(`自建歌单 (${this.customPlaylists.length})`)
+                    .height(32)
+                    .fontSize(12)
+                    .backgroundColor(this.myActiveSubTab === 2 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                    .fontColor(this.myActiveSubTab === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                    .onClick(() => { this.myActiveSubTab = 2; })
+
+                  Button(`下载 (${this.downloadTaskList.length})`)
+                    .height(32)
+                    .fontSize(12)
+                    .backgroundColor(this.myActiveSubTab === 3 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                    .fontColor(this.myActiveSubTab === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
+                    .onClick(() => { this.myActiveSubTab = 3; })
                 }
                 .width('100%')
-                .layoutWeight(1)
-              }
-            }
-            .width('100%')
-            .height('100%')
-            .backgroundColor(this.themeColors.background)
-          }
-          .tabBar('搜索')
+                .padding({ left: 16, right: 16, top: 12, bottom: 8 })
 
-          // Tab 4: 设置
-          TabContent() {
-            Column() {
-              List() {
-                ListItem() {
-                  Row() {
-                    Column({ space: 4 }) {
-                      Text('主题与配色方案')
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(this.themeColors.textPrimary)
-                      Text(`当前主色：${this.themeColors.primary}`)
-                        .fontSize(12)
-                        .fontColor(this.themeColors.textSecondary)
+                // 视图展示
+                if (this.myActiveSubTab === 0) {
+                  // 收藏列表
+                  if (this.myCollectionList.length === 0) {
+                    Column({ space: 8 }) {
+                      Text('🎧').fontSize(44).margin({ top: 60 })
+                      Text('暂无收藏歌曲').fontSize(14).fontColor(this.themeColors.textSecondary)
                     }
-                    .alignItems(HorizontalAlign.Start)
-
-                    Blank()
-                    Text('调整 >')
-                      .fontSize(13)
-                      .fontColor(this.themeColors.primary)
-                  }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                  .onClick(() => {
-                    this.isShowThemeModal = true;
-                  })
-                }
-
-                ListItem() {
-                  Row() {
-                    Column({ space: 4 }) {
-                      Text('音源脚本设置 (User API)')
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(this.themeColors.textPrimary)
-                      Text(this.activeSource ? `当前已激活: ${this.activeSource.name}` : '未导入')
-                        .fontSize(12)
-                        .fontColor(this.themeColors.textSecondary)
-                    }
-                    .alignItems(HorizontalAlign.Start)
-
-                    Blank()
-                    Text('管理 >')
-                      .fontSize(13)
-                      .fontColor(this.themeColors.primary)
-                  }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                  .onClick(() => {
-                    this.isShowSourceModal = true;
-                  })
-                }
-
-                ListItem() {
-                  Row() {
-                    Column({ space: 4 }) {
-                      Text('桌面/全局悬浮歌词')
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(this.themeColors.textPrimary)
-                      Text('在所有应用顶部实时显示歌词')
-                        .fontSize(12)
-                        .fontColor(this.themeColors.textSecondary)
-                    }
-                    .alignItems(HorizontalAlign.Start)
-
-                    Blank()
-                    Toggle({ type: ToggleType.Switch, isOn: this.isFloatLyricOn })
-                      .selectedColor(this.themeColors.primary)
-                      .onChange((isOn: boolean) => {
-                        this.isFloatLyricOn = isOn;
-                        this.floatLyricService.toggleFloatLyric(isOn);
+                    .width('100%')
+                    .layoutWeight(1)
+                  } else {
+                    List() {
+                      ForEach(this.myCollectionList, (item: MusicItem) => {
+                        ListItem() {
+                          MusicListItem({
+                            item: item,
+                            isPlaying: this.currentMusic?.id === item.id,
+                            onClickItem: () => {
+                              this.playerService.setPlayList(this.myCollectionList, this.myCollectionList.indexOf(item));
+                            },
+                            onMoreClick: (it: MusicItem) => {
+                              this.targetMusicForPlaylist = it;
+                              this.isShowAddToPlaylistModal = true;
+                            }
+                          })
+                        }
                       })
-                  }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-                }
-
-                ListItem() {
-                  Row() {
-                    Column({ space: 4 }) {
-                      Text('多端数据同步 (Sync Server)')
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(this.themeColors.textPrimary)
-                      Text(`状态: ${this.syncReportText}`)
-                        .fontSize(12)
-                        .fontColor(this.syncState === SyncConnectionState.CONNECTED ? this.themeColors.primary : this.themeColors.textSecondary)
                     }
-                    .alignItems(HorizontalAlign.Start)
-
-                    Blank()
-                    Text('配置 >')
-                      .fontSize(13)
-                      .fontColor(this.themeColors.primary)
+                    .layoutWeight(1)
+                    .width('100%')
                   }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                  .onClick(() => {
-                    this.isShowSyncModal = true;
-                  })
-                }
+                } else if (this.myActiveSubTab === 1) {
+                  // 本地音乐
+                  Column() {
+                    Row() {
+                      Text(`共 ${this.localMusicList.length} 首本地歌曲`).fontSize(13).fontColor(this.themeColors.textSecondary)
+                      Blank()
+                      Button(this.isScanningLocal ? '扫描中...' : '一键扫描曲库')
+                        .fontSize(12)
+                        .height(28)
+                        .backgroundColor(this.themeColors.primaryLight)
+                        .fontColor(this.themeColors.primary)
+                        .onClick(() => { this.handleScanLocal(); })
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, bottom: 8 })
 
-                ListItem() {
-                  Row() {
-                    Text('关于项目')
-                      .fontSize(15)
-                      .fontColor(this.themeColors.textPrimary)
-                    Blank()
-                    Text('v1.0.0 (HarmonyOS NEXT 26)')
-                      .fontSize(13)
-                      .fontColor(this.themeColors.textSecondary)
+                    List() {
+                      ForEach(this.localMusicList, (item: MusicItem) => {
+                        ListItem() {
+                          MusicListItem({
+                            item: item,
+                            isPlaying: this.currentMusic?.id === item.id,
+                            onClickItem: () => {
+                              this.playerService.setPlayList(this.localMusicList, this.localMusicList.indexOf(item));
+                            },
+                            onMoreClick: (it: MusicItem) => {
+                              this.targetMusicForPlaylist = it;
+                              this.isShowAddToPlaylistModal = true;
+                            }
+                          })
+                        }
+                      })
+                    }
+                    .layoutWeight(1)
+                    .width('100%')
+                    .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
                   }
+                  .layoutWeight(1)
                   .width('100%')
-                  .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                } else if (this.myActiveSubTab === 2) {
+                  // 自建歌单
+                  List({ space: 8 }) {
+                    ForEach(this.customPlaylists, (pl: CustomPlaylist) => {
+                      ListItem() {
+                        Row() {
+                          Image(pl.cover || '')
+                            .width(52)
+                            .height(52)
+                            .borderRadius(8)
+                            .backgroundColor('#F2F3F5')
+                            .margin({ right: 12 })
+
+                          Column({ space: 4 }) {
+                            Text(pl.name)
+                              .fontSize(15)
+                              .fontWeight(FontWeight.Medium)
+                              .fontColor(this.themeColors.textPrimary)
+                            Text(`${pl.list.length} 首歌曲 · ${pl.desc || '自建私享歌单'}`)
+                              .fontSize(12)
+                              .fontColor(this.themeColors.textSecondary)
+                              .maxLines(1)
+                              .textOverflow({ overflow: TextOverflow.Ellipsis })
+                          }
+                          .alignItems(HorizontalAlign.Start)
+                          .layoutWeight(1)
+
+                          Button('播放')
+                            .fontSize(12)
+                            .height(28)
+                            .backgroundColor(this.themeColors.primaryLight)
+                            .fontColor(this.themeColors.primary)
+                            .onClick(() => {
+                              if (pl.list.length > 0) {
+                                this.playerService.setPlayList(pl.list, 0);
+                              }
+                            })
+                        }
+                        .width('100%')
+                        .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+                      }
+                    })
+                  }
+                  .layoutWeight(1)
+                  .width('100%')
+                } else {
+                  // 下载任务
+                  List() {
+                    ForEach(this.downloadTaskList, (task: DownloadTask) => {
+                      ListItem() {
+                        Row() {
+                          Column({ space: 4 }) {
+                            Text(task.musicItem.name)
+                              .fontSize(14)
+                              .fontWeight(FontWeight.Medium)
+                              .fontColor(this.themeColors.textPrimary)
+                            Text(`${task.musicItem.singer} · ${task.quality.toUpperCase()} · 进度: ${task.progress}%`)
+                              .fontSize(11)
+                              .fontColor(this.themeColors.textSecondary)
+                          }
+                          .alignItems(HorizontalAlign.Start)
+                          .layoutWeight(1)
+
+                          Text(task.status === 'completed' ? '已完成' : '下载中')
+                            .fontSize(12)
+                            .fontColor(task.status === 'completed' ? this.themeColors.primary : '#FF9900')
+                            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                            .backgroundColor(this.themeColors.primaryLight)
+                            .borderRadius(4)
+                        }
+                        .width('100%')
+                        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+                      }
+                    })
+                  }
+                  .layoutWeight(1)
+                  .width('100%')
                 }
               }
               .width('100%')
-              .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
+              .height('100%')
+              .backgroundColor(this.themeColors.background)
             }
-            .width('100%')
-            .height('100%')
-            .backgroundColor(this.themeColors.background)
+            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '我的' : '')
+
+            // Tab 3: 搜索 (多源实时检索)
+            TabContent() {
+              Column() {
+                Row({ space: 8 }) {
+                  Search({ value: this.searchKeyword, placeholder: '搜索音乐、歌手、歌曲名' })
+                    .layoutWeight(1)
+                    .height(40)
+                    .onChange((value: string) => { this.searchKeyword = value; })
+                    .onSubmit(() => { this.performSearch(); })
+
+                  Button('搜索')
+                    .fontSize(14)
+                    .backgroundColor(this.themeColors.primary)
+                    .fontColor(Color.White)
+                    .height(38)
+                    .onClick(() => { this.performSearch(); })
+                }
+                .width('94%')
+                .margin({ top: 8, bottom: 8 })
+
+                if (this.isSearching) {
+                  Column({ space: 12 }) {
+                    LoadingProgress().width(40).height(40).color(this.themeColors.primary).margin({ top: 80 })
+                    Text('正在跨源搜索高品质音频...').fontSize(13).fontColor(this.themeColors.textSecondary)
+                  }
+                  .width('100%')
+                  .layoutWeight(1)
+                } else if (this.searchResultList.length > 0) {
+                  List() {
+                    ForEach(this.searchResultList, (item: MusicItem) => {
+                      ListItem() {
+                        MusicListItem({
+                          item: item,
+                          isPlaying: this.currentMusic?.id === item.id && this.playState === PlayState.PLAYING,
+                          onClickItem: async () => { await this.playerService.playMusic(item); },
+                          onMoreClick: (it: MusicItem) => {
+                            this.targetMusicForPlaylist = it;
+                            this.isShowAddToPlaylistModal = true;
+                          }
+                        })
+                      }
+                    })
+                  }
+                  .layoutWeight(1)
+                  .width('100%')
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
+                } else {
+                  Column({ space: 8 }) {
+                    Text('🔍').fontSize(40).margin({ top: 60 })
+                    Text('输入歌名即刻开启全网多源检索').fontSize(14).fontColor(this.themeColors.textSecondary)
+                  }
+                  .width('100%')
+                  .layoutWeight(1)
+                }
+              }
+              .width('100%')
+              .height('100%')
+              .backgroundColor(this.themeColors.background)
+            }
+            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '搜索' : '')
+
+            // Tab 4: 设置
+            TabContent() {
+              Column() {
+                List() {
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text('音效预设与均衡器')
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textPrimary)
+                        Text('5 频段 EQ 增益、低音增强与 3D 环绕声')
+                          .fontSize(12)
+                          .fontColor(this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
+
+                      Blank()
+                      Text('调节 >')
+                        .fontSize(13)
+                        .fontColor(this.themeColors.primary)
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                    .onClick(() => {
+                      this.isShowEqualizerModal = true;
+                    })
+                  }
+
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text('主题与配色方案')
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textPrimary)
+                        Text(`当前主色：${this.themeColors.primary}`)
+                          .fontSize(12)
+                          .fontColor(this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
+
+                      Blank()
+                      Text('调整 >')
+                        .fontSize(13)
+                        .fontColor(this.themeColors.primary)
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                    .onClick(() => {
+                      this.isShowThemeModal = true;
+                    })
+                  }
+
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text('音源脚本设置 (User API)')
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textPrimary)
+                        Text(this.activeSource ? `当前已激活: ${this.activeSource.name}` : '未导入')
+                          .fontSize(12)
+                          .fontColor(this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
+
+                      Blank()
+                      Text('管理 >')
+                        .fontSize(13)
+                        .fontColor(this.themeColors.primary)
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                    .onClick(() => {
+                      this.isShowSourceModal = true;
+                    })
+                  }
+
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text('桌面/全局悬浮歌词')
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textPrimary)
+                        Text('在所有应用顶部实时显示歌词')
+                          .fontSize(12)
+                          .fontColor(this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
+
+                      Blank()
+                      Toggle({ type: ToggleType.Switch, isOn: this.isFloatLyricOn })
+                        .selectedColor(this.themeColors.primary)
+                        .onChange((isOn: boolean) => {
+                          this.isFloatLyricOn = isOn;
+                          this.floatLyricService.toggleFloatLyric(isOn);
+                        })
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+                  }
+
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text('多端数据同步 (Sync Server)')
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textPrimary)
+                        Text(`状态: ${this.syncReportText}`)
+                          .fontSize(12)
+                          .fontColor(this.syncState === SyncConnectionState.CONNECTED ? this.themeColors.primary : this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
+
+                      Blank()
+                      Text('配置 >')
+                        .fontSize(13)
+                        .fontColor(this.themeColors.primary)
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                    .onClick(() => {
+                      this.isShowSyncModal = true;
+                    })
+                  }
+
+                  ListItem() {
+                    Row() {
+                      Text('关于项目')
+                        .fontSize(15)
+                        .fontColor(this.themeColors.textPrimary)
+                      Blank()
+                      Text('v1.0.0 (HarmonyOS NEXT 26)')
+                        .fontSize(13)
+                        .fontColor(this.themeColors.textSecondary)
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                  }
+                }
+                .width('100%')
+                .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
+              }
+              .width('100%')
+              .height('100%')
+              .backgroundColor(this.themeColors.background)
+            }
+            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '设置' : '')
           }
-          .tabBar('设置')
+          .layoutWeight(1)
+          .margin({ bottom: this.currentMusic ? 60 : 0 })
+          .onChange((index: number) => {
+            this.activeTabIndex = index;
+          })
         }
         .layoutWeight(1)
-        .margin({ bottom: this.currentMusic ? 60 : 0 })
-        .onChange((index: number) => {
-          this.activeTabIndex = index;
-        })
+        .height('100%')
+
+        // 宽屏/大屏 (lg 断点) 下的右侧常驻沉浸式双栏播放器
+        if (this.curBreakpoint === BreakpointConstants.BREAKPOINT_LG) {
+          Column({ space: 14 }) {
+            Text('正在播放')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.themeColors.textPrimary)
+              .margin({ top: 16 })
+
+            // 黑胶旋转唱片
+            Image(this.currentMusic?.pic || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=60')
+              .width(180)
+              .height(180)
+              .borderRadius(90)
+              .border({ width: 6, color: '#1A1A1A' })
+              .shadow({ radius: 16, color: '#26000000', offsetY: 8 })
+
+            Column({ space: 2 }) {
+              Text(this.currentMusic?.name || '静候天籁')
+                .fontSize(15)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.themeColors.textPrimary)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+              Text(this.currentMusic?.singer || '挑选一首歌曲开始聆听')
+                .fontSize(12)
+                .fontColor(this.themeColors.textSecondary)
+            }
+
+            // 常驻滚动歌词
+            LyricView({
+              lrcText: this.currentMusic?.lrc || '',
+              currentTimeMs: this.currentTime,
+              onSeek: (timeMs: number) => {
+                this.playerService.seek(timeMs);
+              }
+            })
+            .layoutWeight(1)
+            .width('100%')
+          }
+          .width(320)
+          .height('100%')
+          .backgroundColor(this.themeColors.cardBackground)
+          .border({ width: { left: 1 }, color: this.themeColors.divider })
+          .padding({ left: 16, right: 16, bottom: 60 })
+        }
       }
       .width('100%')
       .height('100%')
@@ -724,6 +963,18 @@ struct Index {
       showClose: true,
       dragBar: true
     })
+    // 音效与均衡器设置半模态
+    .bindSheet($$this.isShowEqualizerModal, this.EqualizerSheet(), {
+      height: 440,
+      showClose: true,
+      dragBar: true
+    })
+    // 添加到歌单半模态
+    .bindSheet($$this.isShowAddToPlaylistModal, this.AddToPlaylistSheet(), {
+      height: 400,
+      showClose: true,
+      dragBar: true
+    })
   }
 
   @Builder
@@ -736,6 +987,25 @@ struct Index {
       playMode: this.playMode,
       onClose: () => {
         this.isShowPlayDetail = false;
+      }
+    })
+  }
+
+  @Builder
+  EqualizerSheet() {
+    EqualizerDialog({
+      onClose: () => {
+        this.isShowEqualizerModal = false;
+      }
+    })
+  }
+
+  @Builder
+  AddToPlaylistSheet() {
+    AddToPlaylistDialog({
+      musicItem: this.targetMusicForPlaylist,
+      onFinished: () => {
+        this.isShowAddToPlaylistModal = false;
       }
     })
   }

@@ -6,6 +6,7 @@ export struct MusicListItem {
   @Prop item: MusicItem;
   @Prop isPlaying: boolean = false;
   private onClickItem?: () => void;
+  private onMoreClick?: (item: MusicItem) => void;
   @State private isDownloaded: boolean = false;
 
   private downloadService: DownloadManagerService = DownloadManagerService.getInstance();
@@ -63,9 +64,26 @@ export struct MusicListItem {
       .width(32)
       .height(32)
       .backgroundColor('#F2F3F5')
+      .margin({ right: 6 })
       .onClick(async () => {
         this.isDownloaded = true;
         await this.downloadService.addTask(this.item);
+      })
+
+      // 更多操作 (加入歌单)
+      Button({ type: ButtonType.Circle }) {
+        Text('···')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#8F959E')
+      }
+      .width(32)
+      .height(32)
+      .backgroundColor('#F2F3F5')
+      .onClick(() => {
+        if (this.onMoreClick) {
+          this.onMoreClick(this.item);
+        }
       })
     }
     .width('100%')

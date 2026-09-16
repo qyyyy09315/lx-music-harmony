@@ -44,13 +44,15 @@
 
 ---
 
-## 💎 阶段三：体验打磨与系统特性增强 (Milestone 3) —— 状态：🟢 大部完成
+## 💎 阶段三：体验打磨与系统特性增强 (Milestone 3) —— 状态：🟢 已全部落地
 
 * 🟢 **[DONE] 主题与色彩体系**：实现 `ThemeService.ets`，支持浅色/深色模式及 5 套预设主题色动态切换；
 * 🟢 **[DONE] 音质切换面板**：实现 `QualitySelectDialog.ets`，支持 128k/320k/FLAC/Hi-Res 灵活切换；
 * 🟢 **[DONE] 本地音乐扫描**：实现 `LocalMusicService.ets` 扫描设备本地音频并支持一键曲库入库；
 * 🟢 **[DONE] 离线缓存与下载管理器**：实现 `DownloadManagerService.ets`，支持单曲下载进度追踪与离线曲库自动联动；
-* ⚪ **[TODO] 多设备响应式布局**：针对手机、折叠屏、平板（Tablet）与 2in1 设备进行自适应分栏排版。
+* 🟢 **[DONE] 多设备与折叠屏/平板响应式布局**：实现 `BreakpointSystem.ets`，支持 `sm` 手机底栏、`md` 侧边栏导航、`lg` 宽屏双栏常驻大唱片与歌词；
+* 🟢 **[DONE] 自定义歌单管理体系**：实现 `PlaylistManagerService.ets` 与 `AddToPlaylistDialog.ets`，支持创建、归纳与导入导出；
+* 🟢 **[DONE] 音效预设与 5 频段均衡器**：实现 `EqualizerService.ets` 与 `EqualizerDialog.ets`，支持 5 段 EQ 增益、低音增强与 3D 空间环绕。
 
 ---
 
