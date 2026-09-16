@@ -209,6 +209,64 @@ export class AudioPlayerService {
   }
 
   /**
+   * 移除播放列表中的某首歌曲
+   */
+  public async removeMusicFromPlaylist(index: number): Promise<void> {
+    if (index < 0 || index >= this.playList.length) return;
+    const isCurrent = this.currentIndex === index;
+    this.playList.splice(index, 1);
+    
+    if (this.playList.length === 0) {
+      this.currentIndex = -1;
+      this.currentMusic = null;
+      if (this.avPlayer && this.avPlayer.state !== 'idle') {
+        await this.avPlayer.reset();
+      }
+      this.state = PlayState.IDLE;
+      this.notifyState();
+      this.notifyMusicChange();
+    } else if (isCurrent) {
+      if (this.currentIndex >= this.playList.length) {
+        this.currentIndex = 0;
+      }
+      await this.playMusic(this.playList[this.currentIndex]);
+    } else if (this.currentIndex > index) {
+      this.currentIndex--;
+    }
+    this.notifyPlaylist();
+  }
+
+  /**
+   * 清空播放列表
+   */
+  public async clearPlaylist(): Promise<void> {
+    this.playList = [];
+    this.currentIndex = -1;
+    this.currentMusic = null;
+    if (this.avPlayer && this.avPlayer.state !== 'idle') {
+      try {
+        await this.avPlayer.reset();
+      } catch (e) {
+        console.error('Error reset avPlayer: ' + JSON.stringify(e));
+      }
+    }
+    this.state = PlayState.IDLE;
+    this.notifyState();
+    this.notifyMusicChange();
+    this.notifyPlaylist();
+  }
+
+  /**
+   * 播放指定列表索引的歌曲
+   */
+  public async playIndex(index: number): Promise<void> {
+    if (index >= 0 && index < this.playList.length) {
+      this.currentIndex = index;
+      await this.playMusic(this.playList[index]);
+    }
+  }
+
+  /**
    * 进度跳转 (ms)
    */
   public async seek(timeMs: number): Promise<void> {

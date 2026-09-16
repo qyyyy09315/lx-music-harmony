@@ -1,6 +1,7 @@
 import { MusicItem, PlayMode, PlayState } from '../model/MusicModel';
 import { AudioPlayerService } from '../services/AudioPlayerService';
 import { LyricView } from './LyricView';
+import { PlaylistDrawer } from './PlaylistDrawer';
 
 @Component
 export struct PlayDetailModal {
@@ -15,6 +16,7 @@ export struct PlayDetailModal {
   @State private isDraggingSlider: boolean = false;
   @State private sliderValue: number = 0;
   @State private rotateAngle: number = 0;
+  @State private showPlaylistDrawer: boolean = false;
 
   private playerService: AudioPlayerService = AudioPlayerService.getInstance();
 
@@ -194,6 +196,9 @@ export struct PlayDetailModal {
           .fontSize(16)
           .height(36)
           .backgroundColor('#F2F3F5')
+          .onClick(() => {
+            this.showPlaylistDrawer = true;
+          })
       }
       .width('100%')
       .justifyContent(FlexAlign.SpaceAround)
@@ -203,5 +208,18 @@ export struct PlayDetailModal {
     .width('100%')
     .height('100%')
     .backgroundColor('#FFFFFF')
+    .bindSheet($$this.showPlaylistDrawer, this.playlistSheetBuilder(), {
+      height: SheetSize.MEDIUM,
+      dragBar: true,
+      backgroundColor: '#22242B'
+    })
+  }
+
+  @Builder
+  playlistSheetBuilder() {
+    PlaylistDrawer({
+      isShowing: $showPlaylistDrawer
+    })
+  }
   }
 }

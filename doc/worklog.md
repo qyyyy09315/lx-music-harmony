@@ -46,3 +46,14 @@
 * **SDK 26 对齐**：修复 `build-profile.json5` 中的 `compileSdkVersion`、`compatibleSdkVersion`、`targetSdkVersion` 为 `"26.0.0"` 字符串格式。
 * **Hvigor 6.26 适配**：将 `hvigor-config.json5` 中插件版本对齐为 `@ohos/hvigor-ohos-plugin@6.26.4`，补充 `oh-package.json5` 与 `hvigorw` 脚本。
 * **HAP 任务流修正**：修正 `entry/hvigorfile.ts` 为 `hapTasks`，成功通过工程全量同步。
+
+### 6. 自定义音源、悬浮歌词与播放列表体系落地 (Sprint 2)
+* **自定义音源服务 (`SourceManagerService.ets`)**：
+  * 实现自定义音源脚本元数据解析、脚本代码导入与持久化存储管理；
+  * 提供多源搜索、音频流 URL 解析及歌词解析统一门面。
+* **全局悬浮歌词 (`FloatLyricService.ets`)**：
+  * 实现基于 `@ohos.window` 的全局浮窗歌词服务及应用内自适应发光胶囊条。
+* **播放列表抽屉 (`PlaylistDrawer.ets`)**：
+  * 在全屏播放器与主页中集成队列抽屉，支持歌曲高亮、单曲移除、一键清空与播放模式切换。
+* **搜索 Tab 升级**：
+  * 接入跨源异步检索、Loading 指示与即搜即播。
