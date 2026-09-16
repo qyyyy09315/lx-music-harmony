@@ -19,6 +19,23 @@ export struct PlayDetailModal {
   @State private showPlaylistDrawer: boolean = false;
   @State private showQualityModal: boolean = false;
   @State private currentQuality: MusicQuality = '320k';
+  @State private rotateAngle: number = 0;
+  private rotateTimer: number = -1;
+
+  aboutToAppear(): void {
+    this.rotateTimer = setInterval(() => {
+      if (this.playState === PlayState.PLAYING && !this.showLyric) {
+        this.rotateAngle = (this.rotateAngle + 2) % 360;
+      }
+    }, 50);
+  }
+
+  aboutToDisappear(): void {
+    if (this.rotateTimer !== -1) {
+      clearInterval(this.rotateTimer);
+      this.rotateTimer = -1;
+    }
+  }
 
   private playerService: AudioPlayerService = AudioPlayerService.getInstance();
 
@@ -65,7 +82,7 @@ export struct PlayDetailModal {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-          Text(this.currentMusic?.singer || '未知歌手')
+          Text(`${this.currentMusic?.singer || '未知歌手'}${this.currentMusic?.source ? ' · ' + this.currentMusic.source.toUpperCase() : ''}`)
             .fontSize(12)
             .fontColor('#8F959E')
             .margin({ top: 2 })
@@ -109,6 +126,7 @@ export struct PlayDetailModal {
               .backgroundColor('#2C2C2C')
               .border({ width: 8, color: '#1A1A1A' })
               .shadow({ radius: 24, color: '#33000000', offsetY: 12 })
+              .rotate({ angle: this.rotateAngle })
           }
           .width('100%')
           .height('100%')
