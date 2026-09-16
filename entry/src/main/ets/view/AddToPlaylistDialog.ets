@@ -4,7 +4,7 @@ import { PlaylistManagerService, CustomPlaylist } from '../services/PlaylistMana
 @Component
 export struct AddToPlaylistDialog {
   @Prop musicItem: MusicItem | null;
-  private onFinished?: () => void;
+  onFinished?: () => void;
 
   @State private playlists: CustomPlaylist[] = [];
   @State private newPlaylistName: string = '';

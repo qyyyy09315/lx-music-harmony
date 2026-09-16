@@ -19,9 +19,29 @@ export interface ParsedLyric {
  */
 export class LyricParser {
   private static timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+  private parsedLines: LyricLine[] = [];
+
+  public parse(lrcText: string): ParsedLyric {
+    const res = LyricParser.parse(lrcText);
+    this.parsedLines = res.lines;
+    return res;
+  }
+
+  public getLines(): LyricLine[] {
+    return this.parsedLines;
+  }
+
+  public getLineAtTime(currentTimeMs: number): LyricLine | null {
+    if (this.parsedLines.length === 0) return null;
+    const idx = LyricParser.findCurrentLineIndex(this.parsedLines, currentTimeMs);
+    if (idx >= 0 && idx < this.parsedLines.length) {
+      return this.parsedLines[idx];
+    }
+    return null;
+  }
 
   /**
-   * 解析 LRC 文本
+   * 解析 LRC 文本 (静态方法)
    */
   public static parse(lrcText: string): ParsedLyric {
     const result: ParsedLyric = {

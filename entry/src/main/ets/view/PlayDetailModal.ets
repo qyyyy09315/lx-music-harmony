@@ -11,7 +11,7 @@ export struct PlayDetailModal {
   @Prop currentTime: number;
   @Prop totalTime: number;
   @Prop playMode: PlayMode;
-  private onClose?: () => void;
+  onClose?: () => void;
 
   @State private showLyric: boolean = false;
   @State private isDraggingSlider: boolean = false;
@@ -254,6 +254,5 @@ export struct PlayDetailModal {
         this.showQualityModal = false;
       }
     })
-  }
   }
 }

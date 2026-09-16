@@ -2,7 +2,7 @@ import window from '@ohos.window';
 import common from '@ohos.app.ability.common';
 import { LyricParser, LyricLine } from '../common/LyricParser';
 import { AudioPlayerService } from './AudioPlayerService';
-import { MusicItem, PlayState } from '../model/MusicModel';
+import { MusicItem } from '../model/MusicModel';
 
 /**
  * 桌面与全局悬浮歌词服务 (单例)
@@ -96,7 +96,6 @@ export class FloatLyricService {
       this.floatWindow = await window.createWindow(config);
       await this.floatWindow.resize(700, 120);
       await this.floatWindow.moveWindowTo(100, 200);
-      await this.floatWindow.setBackgroundColor('#00000000');
       await this.floatWindow.showWindow();
       return true;
     } catch (e) {

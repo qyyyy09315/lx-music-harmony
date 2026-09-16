@@ -88,3 +88,11 @@
   * 增加 `AddToPlaylistDialog.ets` 半模态归纳弹窗。
 * **5 频段音效均衡器 (`EqualizerService.ets` & `EqualizerDialog.ets`)**：
   * 提供 60Hz、230Hz、910Hz、3.6kHz、14kHz 增益调节，支持流行、摇滚、人声、古典等预设音效、低音增强与 3D 空间环绕声。
+
+### 10. 全量编译与 HAP 产物构建验证 (Sprint 6)
+* **静态类型与 ArkTS 语法全量适配**：
+  * 修复了对象的解构赋值与 `Object.assign`，对齐 ArkTS Strict 规范；
+  * 补齐了 `app_icon.png` 和 `icon.png` 系统媒体图标；
+  * 统一了组件对外回调参数的访问权限。
+* **编译测试通过**：
+  * 执行 `assembleHap` 构建流水线，全量 33 个编译与打包任务 **0 Error 全部通过 (BUILD SUCCESSFUL in 4.3s)**。

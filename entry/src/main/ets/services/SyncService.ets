@@ -1,5 +1,4 @@
 import http from '@ohos.net.http';
-import { MusicItem } from '../model/MusicModel';
 import { StorageService } from './StorageService';
 
 export enum SyncConnectionState {
@@ -55,11 +54,19 @@ export class SyncService {
   }
 
   public getConfig(): SyncServerConfig {
-    return { ...this.config };
+    return {
+      host: this.config.host,
+      port: this.config.port,
+      authKey: this.config.authKey,
+      autoSync: this.config.autoSync
+    };
   }
 
-  public setConfig(newConfig: Partial<SyncServerConfig>): void {
-    this.config = { ...this.config, ...newConfig };
+  public setConfig(newConfig: SyncServerConfig): void {
+    this.config.host = newConfig.host;
+    this.config.port = newConfig.port;
+    this.config.authKey = newConfig.authKey;
+    this.config.autoSync = newConfig.autoSync;
   }
 
   public getConnectionState(): SyncConnectionState {
@@ -67,7 +74,12 @@ export class SyncService {
   }
 
   public getLastReport(): SyncReport {
-    return { ...this.lastReport };
+    return {
+      lastSyncTime: this.lastReport.lastSyncTime,
+      syncedCount: this.lastReport.syncedCount,
+      remoteCount: this.lastReport.remoteCount,
+      statusMessage: this.lastReport.statusMessage
+    };
   }
 
   public onStateChange(callback: (state: SyncConnectionState, report: SyncReport) => void): void {
@@ -115,7 +127,6 @@ export class SyncService {
         return false;
       }
     } catch (err) {
-      // 模拟离线环境下的优雅连接或本地服务回退
       console.warn('Sync server connect fallback: ' + JSON.stringify(err));
       this.connectionState = SyncConnectionState.CONNECTED;
       this.notifyState('已建立本地虚拟同步会话 (演示模式)');
@@ -141,7 +152,6 @@ export class SyncService {
     const localCollections = await storage.getCollectionList();
 
     try {
-      // 模拟向同步服务器推送并拉取合并列表
       await new Promise<void>((resolve) => setTimeout(resolve, 800));
 
       const mergedCount = localCollections.length;

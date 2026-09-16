@@ -55,7 +55,14 @@ export class EqualizerService {
   }
 
   public getBands(): EqualizerBand[] {
-    return this.bands.map(b => ({ ...b }));
+    const list: EqualizerBand[] = [];
+    for (let i = 0; i < this.bands.length; i++) {
+      list.push({
+        frequency: this.bands[i].frequency,
+        gain: this.bands[i].gain
+      });
+    }
+    return list;
   }
 
   public setBandGain(index: number, gain: number): void {

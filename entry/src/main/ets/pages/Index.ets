@@ -1,3 +1,4 @@
+import common from '@ohos.app.ability.common';
 import { AudioPlayerService } from '../services/AudioPlayerService';
 import { StorageService } from '../services/StorageService';
 import { SourceManagerService } from '../services/SourceManagerService';
@@ -118,8 +119,8 @@ struct Index {
   private plService: PlaylistManagerService = PlaylistManagerService.getInstance();
 
   aboutToAppear() {
-    this.storageService.init(getContext(this));
-    this.floatLyricService.init(getContext(this) as any);
+    this.storageService.init(getContext(this) as common.UIAbilityContext);
+    this.floatLyricService.init(getContext(this) as common.UIAbilityContext);
 
     // 注册断点系统
     this.breakpointSystem.register((bp: BreakpointType) => {

@@ -139,7 +139,13 @@ export class SourceManagerService {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*'
       };
-      Object.assign(defaultHeaders, headers);
+      if (headers) {
+        const keys = Object.keys(headers);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          defaultHeaders[k] = headers[k];
+        }
+      }
 
       const response = await httpRequest.request(url, {
         method: method,

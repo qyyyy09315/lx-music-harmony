@@ -4,7 +4,7 @@ import { LyricLine, LyricParser } from '../common/LyricParser';
 export struct LyricView {
   @Prop @Watch('onLyricChange') lrcText: string = '';
   @Prop @Watch('onTimeChange') currentTimeMs: number = 0;
-  private onSeek?: (timeMs: number) => void;
+  onSeek?: (timeMs: number) => void;
 
   @State private lyricLines: LyricLine[] = [];
   @State private currentLineIndex: number = 0;

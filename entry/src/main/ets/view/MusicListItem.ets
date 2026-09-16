@@ -5,8 +5,8 @@ import { DownloadManagerService } from '../services/DownloadManagerService';
 export struct MusicListItem {
   @Prop item: MusicItem;
   @Prop isPlaying: boolean = false;
-  private onClickItem?: () => void;
-  private onMoreClick?: (item: MusicItem) => void;
+  onClickItem?: () => void;
+  onMoreClick?: (item: MusicItem) => void;
   @State private isDownloaded: boolean = false;
 
   private downloadService: DownloadManagerService = DownloadManagerService.getInstance();

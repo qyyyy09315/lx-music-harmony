@@ -7,7 +7,7 @@ export struct EqualizerDialog {
   @State private activePreset: string = 'pop';
   @State private bassBoost: number = 30;
   @State private surroundOn: boolean = true;
-  private onClose?: () => void;
+  onClose?: () => void;
 
   private eqService: EqualizerService = EqualizerService.getInstance();
 

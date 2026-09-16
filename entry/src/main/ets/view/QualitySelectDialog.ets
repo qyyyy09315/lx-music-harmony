@@ -11,8 +11,8 @@ export interface QualityOption {
 export struct QualitySelectDialog {
   @Prop currentQuality: MusicQuality = '320k';
   @Prop availableQualities: MusicQuality[] = ['128k', '320k', 'flac'];
-  private onSelect?: (quality: MusicQuality) => void;
-  private onClose?: () => void;
+  onSelect?: (quality: MusicQuality) => void;
+  onClose?: () => void;
 
   private qualityList: QualityOption[] = [
     { type: '128k', label: '标准音质 (128kbps)', desc: '流畅省流，适合弱网环境', tag: '流畅' },
