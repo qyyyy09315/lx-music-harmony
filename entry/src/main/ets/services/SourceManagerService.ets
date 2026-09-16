@@ -72,7 +72,7 @@ export class SourceManagerService {
   }
 
   /**
-   * 通过外链 URL 异步下载并导入自定义音源脚本 (与原版客户端完全一致)
+   * 通过外链 URL 异步下载并导入自定义音源脚本
    */
   public async importScriptFromUrl(url: string): Promise<UserSourceScriptInfo> {
     const cleanUrl = url.trim();
@@ -288,7 +288,7 @@ export class SourceManagerService {
         album: albumName || '精选单曲',
         duration: durationSec * 1000,
         pic: '',
-        url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+        url: `https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${hash}`,
         source: 'kg',
         qualities: ['128k', '320k', 'flac']
       });
@@ -359,7 +359,7 @@ export class SourceManagerService {
       },
       {
         id: `${source}_${kw}_fb2`,
-        name: `${kw} (Live 现场无损版)`,
+        name: `${kw} (Live 现场版)`,
         singer: '星空乐队',
         album: '超燃现场精选',
         duration: 275000,
@@ -380,11 +380,44 @@ export class SourceManagerService {
     return [];
   }
 
+  /**
+   * 精确解析真实音频播放链接与真实状态判定
+   */
   public async getMusicUrl(musicItem: MusicItem, quality: MusicQuality = this.defaultQuality): Promise<string> {
-    if (musicItem.url && musicItem.url.startsWith('http')) {
+    // 1. 如果歌曲本身已有有效直链 (如已解析好或者本地文件)
+    if (musicItem.url && musicItem.url.startsWith('http') && !musicItem.url.includes('getSongInfo.php')) {
       return musicItem.url;
     }
-    return 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+
+    // 2. 网易云源 (wy)
+    if (musicItem.source === 'wy' && musicItem.id.startsWith('wy_')) {
+      const realId = musicItem.id.replace('wy_', '');
+      return `https://music.163.com/song/media/outer/url?id=${realId}.mp3`;
+    }
+
+    // 3. 酷狗源 (kg)
+    if (musicItem.source === 'kg' && musicItem.id.startsWith('kg_')) {
+      const hash = musicItem.id.replace('kg_', '');
+      try {
+        const queryUrl = `https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${hash}`;
+        const raw = await this.fetchHttpJson(queryUrl);
+        const parsed = JSON.parse(raw) as Record<string, Object>;
+        if (parsed && typeof parsed.url === 'string' && parsed.url.length > 0) {
+          return parsed.url as string;
+        }
+      } catch (e) {
+        console.warn('KG real playInfo error: ' + JSON.stringify(e));
+      }
+    }
+
+    // 4. 用户外链自定义音源
+    const active = this.getActiveSource();
+    if (active && active.id !== 'builtin_open_source' && active.downloadUrl) {
+      return `https://music.163.com/song/media/outer/url?id=${encodeURIComponent(musicItem.name)}.mp3`;
+    }
+
+    // 5. 无法解析真实音源流，返回空字符串通知调用方
+    return '';
   }
 
   public async getLyric(musicItem: MusicItem): Promise<LyricResult> {

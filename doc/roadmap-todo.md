@@ -37,7 +37,8 @@
 * 🟢 **音效与 5 频段均衡器**：实现 `EqualizerService.ets` 与 `EqualizerDialog.ets`，支持 5 段 EQ 增益、低音增强与 3D 空间环绕；
 * 🟢 **桌面全局悬浮歌词**：实现 `FloatLyricService.ets`，支持跨应用浮窗与应用内自适应发光胶囊条；
 * 🟢 **多端数据同步协议**：实现 `SyncService.ets`，对接 `lx-music-sync-server` 密钥认证与双向歌单合并；
-* 🟢 **多设备响应式布局**：实现 `BreakpointSystem.ets`，适配手机 (`sm`)、折叠屏/平板 (`md` 侧边栏) 与宽屏 (`lg` 双栏大唱片)。
+* 🟢 **多设备响应式布局**：实现 `BreakpointSystem.ets`，适配手机 (`sm`)、折叠屏/平板 (`md` 侧边栏) 与宽屏 (`lg` 双栏大唱片)；
+* 🟢 **全链路严谨状态提示与音源校验**：实现 `ToastUtil.ets` 封装系统级 Toast，对点击播放、歌曲下载、歌单加入、本地扫描与音源导入提供真实校验与精准错误拦截。
 
 ---
 

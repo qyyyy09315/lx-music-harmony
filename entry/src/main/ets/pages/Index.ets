@@ -1,4 +1,5 @@
 import common from '@ohos.app.ability.common';
+import { ToastUtil } from '../common/ToastUtil';
 import { AudioPlayerService } from '../services/AudioPlayerService';
 import { StorageService } from '../services/StorageService';
 import { SourceManagerService } from '../services/SourceManagerService';
@@ -163,6 +164,7 @@ struct Index {
   private async performSearch() {
     if (!this.searchKeyword.trim()) {
       this.searchResultList = [];
+      ToastUtil.show('请输入歌曲名或歌手名');
       return;
     }
 
@@ -178,8 +180,12 @@ struct Index {
     try {
       const result = await this.sourceService.searchMusic(kw, this.searchSourceTab);
       this.searchResultList = result.list;
+      if (this.searchResultList.length === 0) {
+        ToastUtil.show('未检索到相关曲目，请尝试其他关键词或音源');
+      }
     } catch (e) {
       console.error('Search error: ' + JSON.stringify(e));
+      ToastUtil.showError('搜索请求失败，请检查网络设置');
     } finally {
       this.isSearching = false;
     }
@@ -187,8 +193,10 @@ struct Index {
 
   private async handleScanLocal() {
     this.isScanningLocal = true;
+    ToastUtil.show('正在扫描设备存储音频...', 1200);
     try {
       this.localMusicList = await this.localMusicService.scanLocalAudio();
+      ToastUtil.show(`本地曲库扫描完成，共 ${this.localMusicList.length} 首`);
     } finally {
       this.isScanningLocal = false;
     }
@@ -614,9 +622,12 @@ struct Index {
                           .fontColor(Color.White)
                           .onClick(() => {
                             if (this.newPlaylistNameInput.trim()) {
-                              this.plService.createPlaylist(this.newPlaylistNameInput.trim());
+                              const created = this.plService.createPlaylist(this.newPlaylistNameInput.trim());
                               this.newPlaylistNameInput = '';
                               this.isShowCreatePlaylistInput = false;
+                              ToastUtil.show(`歌单【${created.name}】创建成功！`);
+                            } else {
+                              ToastUtil.show('请输入歌单名称');
                             }
                           })
                       }
@@ -1084,13 +1095,18 @@ struct Index {
             .fontColor(Color.White)
             .onClick(async () => {
               if (this.importScriptInput.trim()) {
+                ToastUtil.show('正在下载并解析音源脚本...', 1500);
                 try {
-                  await this.sourceService.importScriptFromUrl(this.importScriptInput.trim());
+                  const info = await this.sourceService.importScriptFromUrl(this.importScriptInput.trim());
                   this.importScriptInput = '';
                   this.loadSources();
+                  ToastUtil.show(`音源【${info.name}】导入并激活成功！`);
                 } catch (e) {
                   console.error('Download source error: ' + JSON.stringify(e));
+                  ToastUtil.showError('音源脚本下载失败，请检查链接或网络');
                 }
+              } else {
+                ToastUtil.show('请输入音源脚本外链 URL');
               }
             })
         }
@@ -1154,6 +1170,7 @@ struct Index {
                     .onClick(() => {
                       this.sourceService.setActiveSource(src.id);
                       this.loadSources();
+                      ToastUtil.show(`已切换为音源【${src.name}】`);
                     })
                 }
 
@@ -1166,6 +1183,7 @@ struct Index {
                   .onClick(() => {
                     this.sourceService.deleteSource(src.id);
                     this.loadSources();
+                    ToastUtil.show(`已删除音源【${src.name}】`);
                   })
                 }
               }
@@ -1252,7 +1270,9 @@ struct Index {
           .backgroundColor('#F2F3F5')
           .fontColor('#1F2329')
           .onClick(async () => {
+            ToastUtil.show('正在测试服务器连接...', 1000);
             await this.syncService.connectServer(this.syncHost, this.syncPort, this.syncKey);
+            ToastUtil.show(this.syncReportText);
           })
 
         Button('立即双向同步')
@@ -1261,8 +1281,10 @@ struct Index {
           .backgroundColor('#07C160')
           .fontColor(Color.White)
           .onClick(async () => {
+            ToastUtil.show('正在执行双向加密同步...', 1000);
             await this.syncService.syncData();
             await this.loadCollections();
+            ToastUtil.show(this.syncReportText);
           })
       }
       .width('100%')

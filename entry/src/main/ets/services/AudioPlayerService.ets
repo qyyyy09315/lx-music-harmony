@@ -1,9 +1,11 @@
 import media from '@ohos.multimedia.media';
 import { MusicItem, PlayMode, PlayState } from '../model/MusicModel';
 import { AVSessionService } from './AVSessionService';
+import { SourceManagerService } from './SourceManagerService';
+import { ToastUtil } from '../common/ToastUtil';
 
 /**
- * 鸿蒙原生音频播放核心服务 (基于 AVPlayer + 智能兜底)
+ * 鸿蒙原生音频播放核心服务 (具备严谨音源校验与状态提示)
  */
 export class AudioPlayerService {
   private static instance: AudioPlayerService;
@@ -32,9 +34,6 @@ export class AudioPlayerService {
     return AudioPlayerService.instance;
   }
 
-  /**
-   * 初始化 AVPlayer
-   */
   public async init(): Promise<void> {
     if (this.avPlayer) return;
     try {
@@ -93,9 +92,10 @@ export class AudioPlayerService {
           this.stopMockTimer();
           break;
         case 'error':
-          console.warn('AVPlayer error state, fallback to simulated timeline');
-          this.state = PlayState.PLAYING;
-          this.startMockTimer();
+          console.warn('AVPlayer error event, stop playback');
+          this.state = PlayState.ERROR;
+          this.stopMockTimer();
+          ToastUtil.showError(`【${this.currentMusic?.name || '歌曲'}】音频流解码失败`);
           break;
       }
       this.notifyState();
@@ -107,10 +107,11 @@ export class AudioPlayerService {
     });
 
     this.avPlayer.on('error', (err) => {
-      console.warn('AVPlayer error event, fallback to smooth timer: ' + JSON.stringify(err));
-      this.state = PlayState.PLAYING;
-      this.startMockTimer();
+      console.warn('AVPlayer error event: ' + JSON.stringify(err));
+      this.state = PlayState.ERROR;
+      this.stopMockTimer();
       this.notifyState();
+      ToastUtil.showError(`播放发生异常：${JSON.stringify(err)}`);
     });
   }
 
@@ -138,14 +139,36 @@ export class AudioPlayerService {
   }
 
   /**
-   * 播放单曲
+   * 播放单曲 (带严谨真实音源解析与无音源拦截提示)
    */
-  public async playMusic(music: MusicItem): Promise<void> {
+  public async playMusic(music: MusicItem): Promise<boolean> {
     if (!this.avPlayer) {
       await this.init();
     }
 
-    // 检查是否已经在播放列表中
+    // 1. 给出解析中状态反馈
+    this.state = PlayState.PREPARING;
+    this.notifyState();
+    ToastUtil.show(`正在解析【${music.name}】音频流...`, 1200);
+
+    // 2. 尝试获取真实可播音频地址
+    let targetUrl: string = '';
+    try {
+      targetUrl = await SourceManagerService.getInstance().getMusicUrl(music);
+    } catch (err) {
+      console.warn('Resolve error: ' + JSON.stringify(err));
+    }
+
+    // 3. 校验音源地址有效性
+    if (!targetUrl || targetUrl.trim().length === 0) {
+      this.state = PlayState.IDLE;
+      this.notifyState();
+      ToastUtil.showError(`【${music.name}】当前音源未提供音频流，请在设置中导入自定义音源脚本`);
+      return false;
+    }
+
+    // 4. 成功获取音源，加入待播队列
+    music.url = targetUrl;
     const idx = this.playList.findIndex(m => m.id === music.id);
     if (idx >= 0) {
       this.currentIndex = idx;
@@ -157,32 +180,41 @@ export class AudioPlayerService {
 
     this.currentMusic = music;
     this.currentMockTime = 0;
-    this.state = PlayState.PLAYING; // 即刻响应式进入播放态
     this.notifyMusicChange();
-    this.notifyState();
 
-    if (this.avPlayer && music.url) {
+    // 5. 送入 AVPlayer 执行流播放
+    if (this.avPlayer) {
       try {
         if (this.avPlayer.state !== 'idle') {
           await this.avPlayer.reset();
         }
-        this.avPlayer.url = music.url;
+        this.avPlayer.url = targetUrl;
+        ToastUtil.show(`开始播放：${music.name}`, 1500);
       } catch (e) {
-        console.warn('Failed to set avPlayer url, start timer: ' + JSON.stringify(e));
+        console.warn('AVPlayer url error: ' + JSON.stringify(e));
+        this.state = PlayState.PLAYING;
         this.startMockTimer();
+        this.notifyState();
       }
     } else {
+      this.state = PlayState.PLAYING;
       this.startMockTimer();
+      this.notifyState();
     }
+    return true;
   }
 
   /**
    * 设置播放列表并播放指定索引
    */
   public async setPlayList(list: MusicItem[], startIndex: number = 0): Promise<void> {
+    if (list.length === 0) {
+      ToastUtil.show('当前列表无歌曲可播');
+      return;
+    }
     this.playList = [...list];
     this.notifyPlaylist();
-    if (list.length > 0 && startIndex >= 0 && startIndex < list.length) {
+    if (startIndex >= 0 && startIndex < list.length) {
       await this.playMusic(list[startIndex]);
     }
   }
@@ -215,6 +247,10 @@ export class AudioPlayerService {
       }
     } else if (this.currentMusic) {
       await this.playMusic(this.currentMusic);
+    } else if (this.playList.length > 0) {
+      await this.playMusic(this.playList[0]);
+    } else {
+      ToastUtil.show('播放队列为空，请先搜索歌曲');
     }
     this.notifyState();
   }
@@ -223,7 +259,10 @@ export class AudioPlayerService {
    * 播放下一首
    */
   public async playNext(): Promise<void> {
-    if (this.playList.length === 0) return;
+    if (this.playList.length === 0) {
+      ToastUtil.show('播放列表为空');
+      return;
+    }
 
     if (this.playMode === PlayMode.RANDOM) {
       const nextIdx = Math.floor(Math.random() * this.playList.length);
@@ -242,7 +281,10 @@ export class AudioPlayerService {
    * 播放上一首
    */
   public async playPrevious(): Promise<void> {
-    if (this.playList.length === 0) return;
+    if (this.playList.length === 0) {
+      ToastUtil.show('播放列表为空');
+      return;
+    }
 
     if (this.playMode === PlayMode.RANDOM) {
       const prevIdx = Math.floor(Math.random() * this.playList.length);
@@ -271,7 +313,9 @@ export class AudioPlayerService {
   public async removeMusicFromPlaylist(index: number): Promise<void> {
     if (index < 0 || index >= this.playList.length) return;
     const isCurrent = this.currentIndex === index;
+    const removedItem = this.playList[index];
     this.playList.splice(index, 1);
+    ToastUtil.show(`已从队列移除：${removedItem.name}`);
     
     if (this.playList.length === 0) {
       this.currentIndex = -1;
@@ -317,11 +361,9 @@ export class AudioPlayerService {
     this.notifyState();
     this.notifyMusicChange();
     this.notifyPlaylist();
+    ToastUtil.show('播放队列已清空');
   }
 
-  /**
-   * 播放指定列表索引的歌曲
-   */
   public async playIndex(index: number): Promise<void> {
     if (index >= 0 && index < this.playList.length) {
       this.currentIndex = index;
@@ -329,9 +371,6 @@ export class AudioPlayerService {
     }
   }
 
-  /**
-   * 进度跳转 (ms)
-   */
   public async seek(timeMs: number): Promise<void> {
     this.currentMockTime = timeMs;
     if (this.avPlayer && (this.state === PlayState.PLAYING || this.state === PlayState.PAUSED)) {
@@ -347,12 +386,15 @@ export class AudioPlayerService {
     switch (this.playMode) {
       case PlayMode.LIST_LOOP:
         this.playMode = PlayMode.SINGLE_LOOP;
+        ToastUtil.show('切换为：单曲循环');
         break;
       case PlayMode.SINGLE_LOOP:
         this.playMode = PlayMode.RANDOM;
+        ToastUtil.show('切换为：随机播放');
         break;
       case PlayMode.RANDOM:
         this.playMode = PlayMode.LIST_LOOP;
+        ToastUtil.show('切换为：列表循环');
         break;
     }
     return this.playMode;

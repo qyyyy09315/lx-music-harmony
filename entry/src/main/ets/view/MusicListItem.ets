@@ -14,6 +14,10 @@ export struct MusicListItem {
 
   private downloadService: DownloadManagerService = DownloadManagerService.getInstance();
 
+  aboutToAppear(): void {
+    this.isDownloaded = this.downloadService.isDownloaded(this.item.id);
+  }
+
   build() {
     Row() {
       // 歌曲核心文本区域
@@ -66,8 +70,10 @@ export struct MusicListItem {
         .height(32)
         .backgroundColor(Color.Transparent)
         .onClick(async () => {
-          this.isDownloaded = true;
-          await this.downloadService.addTask(this.item);
+          const task = await this.downloadService.addTask(this.item);
+          if (task) {
+            this.isDownloaded = true;
+          }
         })
 
         Button({ type: ButtonType.Circle }) {
