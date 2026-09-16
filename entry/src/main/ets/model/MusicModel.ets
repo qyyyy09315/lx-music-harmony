@@ -3,6 +3,12 @@
  */
 
 export type MusicQuality = '128k' | '320k' | 'flac' | 'flac24bit';
+export type MusicSource = 'all' | 'kw' | 'kg' | 'tx' | 'wy' | 'mg' | 'local' | 'download';
+
+export interface SourceTabItem {
+  id: string;
+  name: string;
+}
 
 /**
  * 音乐实体模型
@@ -75,4 +81,30 @@ export interface UserSourceScriptInfo {
   rawScript: string;
   enabled: boolean;
   createTime: number;
+}
+
+/**
+ * 歌单广场歌单实体
+ */
+export interface SongListInfo {
+  id: string;
+  name: string;
+  cover: string;
+  playCount: string;
+  author: string;
+  desc?: string;
+  source: string;
+  list: MusicItem[];
+}
+
+/**
+ * 排行榜实体
+ */
+export interface LeaderboardInfo {
+  id: string;
+  name: string;
+  source: string;
+  cover: string;
+  desc?: string;
+  list: MusicItem[];
 }
