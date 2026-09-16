@@ -66,6 +66,8 @@ struct Index {
   @State sourceList: UserSourceScriptInfo[] = [];
   @State activeSource: UserSourceScriptInfo | undefined = undefined;
   @State importScriptInput: string = '';
+  @State isShowPasteScript: boolean = false;
+  @State rawPasteScriptInput: string = '';
   @State isFloatLyricOn: boolean = false;
   @State floatingLyricText: string = '洛雪音乐 - 听你所想';
   @State syncHost: string = 'http://127.0.0.1';
@@ -1103,7 +1105,7 @@ struct Index {
                   ToastUtil.show(`音源【${info.name}】导入并激活成功！`);
                 } catch (e) {
                   console.error('Download source error: ' + JSON.stringify(e));
-                  ToastUtil.showError('音源脚本下载失败，请检查链接或网络');
+                  ToastUtil.showError(e.message || '音源脚本下载失败，请检查外链或网络');
                 }
               } else {
                 ToastUtil.show('请输入音源脚本外链 URL');
@@ -1111,6 +1113,52 @@ struct Index {
             })
         }
         .width('100%')
+
+        // 备用粘贴导入入口
+        Row() {
+          Text(this.isShowPasteScript ? '收起直接粘贴模式' : '外链打不开？点击直接粘贴代码导入')
+            .fontSize(11)
+            .fontColor('#07C160')
+            .onClick(() => {
+              this.isShowPasteScript = !this.isShowPasteScript;
+            })
+        }
+        .width('100%')
+        .padding({ top: 2 })
+
+        if (this.isShowPasteScript) {
+          Row({ space: 8 }) {
+            TextInput({ placeholder: '粘贴音源脚本 JS 完整代码...', text: this.rawPasteScriptInput })
+              .layoutWeight(1)
+              .height(38)
+              .onChange((v: string) => {
+                this.rawPasteScriptInput = v;
+              })
+
+            Button('导入')
+              .fontSize(12)
+              .height(38)
+              .backgroundColor('#07C160')
+              .fontColor(Color.White)
+              .onClick(() => {
+                if (this.rawPasteScriptInput.trim()) {
+                  try {
+                    const info = this.sourceService.importScript(this.rawPasteScriptInput.trim());
+                    this.rawPasteScriptInput = '';
+                    this.isShowPasteScript = false;
+                    this.loadSources();
+                    ToastUtil.show(`音源【${info.name}】代码导入成功！`);
+                  } catch (err) {
+                    ToastUtil.showError('脚本解析失败，请确保代码格式正确');
+                  }
+                } else {
+                  ToastUtil.show('请粘贴脚本代码');
+                }
+              })
+          }
+          .width('100%')
+          .padding({ top: 4 })
+        }
       }
       .width('100%')
       .padding({ left: 20, right: 20, bottom: 4 })

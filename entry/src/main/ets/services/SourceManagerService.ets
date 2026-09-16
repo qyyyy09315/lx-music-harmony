@@ -80,17 +80,28 @@ export class SourceManagerService {
       throw new Error('请输入合法的 http 或 https 音源脚本链接');
     }
 
-    const scriptText = await this.fetchHttpJson(cleanUrl);
+    let scriptText = '';
+    try {
+      scriptText = await this.fetchHttpJson(cleanUrl);
+    } catch (netErr) {
+      throw new Error(`连接失败：该外链服务器未响应或连接被机房切断`);
+    }
+
     if (!scriptText || scriptText.trim().length === 0) {
       throw new Error('下载音源脚本内容为空');
+    }
+
+    // 检查是否返回了机房拦截 HTML 或网页
+    if (scriptText.includes('<html') || scriptText.includes('<!DOCTYPE') || scriptText.includes('Non-compliance ICP Filing')) {
+      throw new Error('外链服务器异常：该域名未通过机房合规备案或已被云厂商拦截');
     }
 
     const meta = this.parseScriptMetadata(scriptText);
     const id = `user_src_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const sourceInfo: UserSourceScriptInfo = {
       id: id,
-      name: meta.name || '外部网络自定义音源',
-      description: meta.description || '从网络外链下载导入的音源脚本',
+      name: meta.name || '外部网络音源',
+      description: meta.description || '从网络外链导入的音源脚本',
       version: meta.version || '1.0.0',
       author: meta.author || '网络作者',
       homepage: meta.homepage || cleanUrl,
