@@ -78,6 +78,7 @@ export interface UserSourceScriptInfo {
   version: string;
   author: string;
   homepage?: string;
+  downloadUrl?: string;
   rawScript: string;
   enabled: boolean;
   createTime: number;

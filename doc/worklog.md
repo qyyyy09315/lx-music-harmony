@@ -148,3 +148,10 @@
 * **音频引擎即时状态反馈 (`AudioPlayerService.ets`)**：
   * 点击歌曲时即刻进入 `PLAYING` 状态机并同步播控中心与波形高亮，加入时间轴平滑模拟保护，确保弱网与模拟器环境下进度条与歌词持续滚动。
 * **全量构建验证**：33 个编译任务 **0 Error 构建成功 (BUILD SUCCESSFUL in 2.7s)**。
+
+### 18. 原版文件外链 (URL) 下载导入自定义音源规范对齐 (Sprint 14)
+* **外链异步下载引擎 (`SourceManagerService.ets`)**：
+  * 对齐原版客户端规范，实现 `importScriptFromUrl(url)` 与 `updateSourceFromUrl(sourceId)`；
+  * 支持输入任意远程 JS 外链（如 GitHub/Gitee raw 脚本地址），自动 HTTP GET 下载、校验并动态解析头部元数据；
+  * 记录 `downloadUrl` 原始外链，支持在音源卡片中查看地址、切换启用、重新拉取更新与删除。
+* **全量构建通过**：33 个任务 **0 Error 成功打包 (BUILD SUCCESSFUL in 3.7s)**。

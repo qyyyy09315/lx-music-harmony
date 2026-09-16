@@ -1062,76 +1062,125 @@ struct Index {
       .width('100%')
       .padding({ left: 20, right: 16, top: 16, bottom: 4 })
 
-      List() {
+      // 外链输入与下载导入区
+      Column({ space: 8 }) {
+        Text('通过网络外链导入音源脚本 (.js)')
+          .fontSize(12)
+          .fontColor('#8F959E')
+          .alignSelf(ItemAlign.Start)
+
+        Row({ space: 8 }) {
+          TextInput({ placeholder: '输入音源脚本外链 URL (http/https)...', text: this.importScriptInput })
+            .layoutWeight(1)
+            .height(40)
+            .onChange((val: string) => {
+              this.importScriptInput = val;
+            })
+
+          Button('下载导入')
+            .fontSize(13)
+            .height(40)
+            .backgroundColor('#07C160')
+            .fontColor(Color.White)
+            .onClick(async () => {
+              if (this.importScriptInput.trim()) {
+                try {
+                  await this.sourceService.importScriptFromUrl(this.importScriptInput.trim());
+                  this.importScriptInput = '';
+                  this.loadSources();
+                } catch (e) {
+                  console.error('Download source error: ' + JSON.stringify(e));
+                }
+              }
+            })
+        }
+        .width('100%')
+      }
+      .width('100%')
+      .padding({ left: 20, right: 20, bottom: 4 })
+
+      Divider().color('#F2F3F5').strokeWidth(0.5)
+
+      // 已安装音源列表
+      List({ space: 8 }) {
         ForEach(this.sourceList, (src: UserSourceScriptInfo) => {
           ListItem() {
             Row() {
-              Column({ space: 3 }) {
-                Text(src.name)
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#1F2329')
-                Text(`${src.description} · v${src.version}`)
+              Column({ space: 4 }) {
+                Row({ space: 6 }) {
+                  Text(src.name)
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#1F2329')
+                  Text(`v${src.version}`)
+                    .fontSize(11)
+                    .fontColor('#07C160')
+                    .backgroundColor('#E8F8F0')
+                    .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+                    .borderRadius(4)
+                }
+
+                Text(src.description)
                   .fontSize(11)
                   .fontColor('#8F959E')
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                if (src.downloadUrl) {
+                  Text(src.downloadUrl)
+                    .fontSize(10)
+                    .fontColor('#8F959E')
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                }
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
-              if (this.activeSource?.id === src.id) {
-                Text('使用中')
-                  .fontSize(12)
-                  .fontColor('#07C160')
-                  .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                  .backgroundColor('#E8F8F0')
-                  .borderRadius(8)
-              } else {
-                Button('启用')
-                  .fontSize(12)
-                  .height(28)
-                  .backgroundColor('#F2F3F5')
-                  .fontColor('#1F2329')
+              Row({ space: 6 }) {
+                if (this.activeSource?.id === src.id) {
+                  Text('使用中')
+                    .fontSize(12)
+                    .fontColor('#07C160')
+                    .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                    .backgroundColor('#E8F8F0')
+                    .borderRadius(8)
+                } else {
+                  Button('启用')
+                    .fontSize(12)
+                    .height(28)
+                    .backgroundColor('#F2F3F5')
+                    .fontColor('#1F2329')
+                    .onClick(() => {
+                      this.sourceService.setActiveSource(src.id);
+                      this.loadSources();
+                    })
+                }
+
+                if (src.id !== 'builtin_open_source') {
+                  Button({ type: ButtonType.Circle }) {
+                    Image($r('app.media.ic_trash'))
+                      .width(13).height(13).fillColor('#FF4D4F')
+                  }
+                  .width(28).height(28).backgroundColor('#FFF1F0')
                   .onClick(() => {
-                    this.sourceService.setActiveSource(src.id);
+                    this.sourceService.deleteSource(src.id);
                     this.loadSources();
                   })
+                }
               }
             }
             .width('100%')
-            .padding({ top: 8, bottom: 8 })
+            .padding({ top: 6, bottom: 6 })
           }
         }, (src: UserSourceScriptInfo) => src.id)
       }
       .width('100%')
       .layoutWeight(1)
-
-      Row({ space: 8 }) {
-        TextInput({ placeholder: '粘贴音源脚本代码...', text: this.importScriptInput })
-          .layoutWeight(1)
-          .height(40)
-          .onChange((val: string) => {
-            this.importScriptInput = val;
-          })
-
-        Button('导入')
-          .fontSize(13)
-          .height(40)
-          .backgroundColor('#07C160')
-          .fontColor(Color.White)
-          .onClick(() => {
-            if (this.importScriptInput.trim()) {
-              this.sourceService.importScript(this.importScriptInput.trim());
-              this.importScriptInput = '';
-              this.loadSources();
-            }
-          })
-      }
-      .width('100%')
-      .padding({ bottom: 16 })
+      .padding({ left: 20, right: 20 })
     }
     .width('100%')
-    .height(380)
-    .padding({ left: 20, right: 20 })
+    .height(440)
   }
 
   @Builder

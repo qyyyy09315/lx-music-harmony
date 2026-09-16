@@ -2,7 +2,7 @@ import http from '@ohos.net.http';
 import { MusicItem, MusicQuality, LyricResult, SearchResult, UserSourceScriptInfo, SongListInfo, LeaderboardInfo, SourceTabItem } from '../model/MusicModel';
 
 /**
- * 洛雪音乐 多平台真实音源调度与解析引擎 (单例)
+ * 洛雪音乐 多平台真实音源调度与外链脚本解析引擎 (单例)
  */
 export class SourceManagerService {
   private static instance: SourceManagerService;
@@ -41,6 +41,8 @@ export class SourceManagerService {
       description: '实时聚合网易云、酷我、酷狗等在线音源搜索与解析',
       version: '1.3.0',
       author: 'LX-Team',
+      homepage: 'https://github.com/lyswhut/lx-music-mobile',
+      downloadUrl: 'https://raw.githubusercontent.com/lyswhut/lx-music-source/main/dist/lx-source.js',
       rawScript: '// Built-in multi-platform real source parser',
       enabled: true,
       createTime: Date.now()
@@ -65,6 +67,64 @@ export class SourceManagerService {
     if (this.sources.has(sourceId)) {
       this.activeSourceId = sourceId;
       return true;
+    }
+    return false;
+  }
+
+  /**
+   * 通过外链 URL 异步下载并导入自定义音源脚本 (与原版客户端完全一致)
+   */
+  public async importScriptFromUrl(url: string): Promise<UserSourceScriptInfo> {
+    const cleanUrl = url.trim();
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      throw new Error('请输入合法的 http 或 https 音源脚本链接');
+    }
+
+    const scriptText = await this.fetchHttpJson(cleanUrl);
+    if (!scriptText || scriptText.trim().length === 0) {
+      throw new Error('下载音源脚本内容为空');
+    }
+
+    const meta = this.parseScriptMetadata(scriptText);
+    const id = `user_src_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const sourceInfo: UserSourceScriptInfo = {
+      id: id,
+      name: meta.name || '外部网络自定义音源',
+      description: meta.description || '从网络外链下载导入的音源脚本',
+      version: meta.version || '1.0.0',
+      author: meta.author || '网络作者',
+      homepage: meta.homepage || cleanUrl,
+      downloadUrl: cleanUrl,
+      rawScript: scriptText,
+      enabled: true,
+      createTime: Date.now()
+    };
+
+    this.sources.set(id, sourceInfo);
+    this.activeSourceId = id;
+    return sourceInfo;
+  }
+
+  /**
+   * 重新从原始外链下载更新音源
+   */
+  public async updateSourceFromUrl(sourceId: string): Promise<boolean> {
+    const target = this.sources.get(sourceId);
+    if (!target || !target.downloadUrl) return false;
+
+    try {
+      const scriptText = await this.fetchHttpJson(target.downloadUrl);
+      if (scriptText) {
+        const meta = this.parseScriptMetadata(scriptText);
+        target.name = meta.name || target.name;
+        target.version = meta.version || target.version;
+        target.description = meta.description || target.description;
+        target.author = meta.author || target.author;
+        target.rawScript = scriptText;
+        return true;
+      }
+    } catch (e) {
+      console.error('Update source error: ' + JSON.stringify(e));
     }
     return false;
   }
@@ -136,8 +196,8 @@ export class SourceManagerService {
       const response = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
         header: defaultHeaders,
-        readTimeout: 8000,
-        connectTimeout: 8000
+        readTimeout: 10000,
+        connectTimeout: 10000
       });
 
       if (response.responseCode === 200) {
@@ -254,13 +314,11 @@ export class SourceManagerService {
       } else if (source === 'kg') {
         resultList = await this.searchKugou(kw, page, limit);
       } else if (source === 'kw') {
-        resultList = await this.searchKugou(kw, page, limit); // 备用高质量返回
+        resultList = await this.searchKugou(kw, page, limit);
       } else if (source === 'all') {
-        // 全部聚合：并发拉取网易云与酷狗，合并输出几十首丰富条目
         const wyList: MusicItem[] = await this.searchNetease(kw, page, 25).catch((_e: Error): MusicItem[] => []);
         const kgList: MusicItem[] = await this.searchKugou(kw, page, 25).catch((_e: Error): MusicItem[] => []);
         
-        // 交叉合并，丰富来源展示
         const maxLen = Math.max(wyList.length, kgList.length);
         for (let i = 0; i < maxLen; i++) {
           if (i < wyList.length) resultList.push(wyList[i]);
@@ -273,7 +331,6 @@ export class SourceManagerService {
       console.warn('Real search error: ' + JSON.stringify(e));
     }
 
-    // 只有在彻底无网或返回为空时才回退
     if (resultList.length === 0) {
       resultList = this.getFallbackSearchResults(kw, source);
     }
@@ -316,213 +373,11 @@ export class SourceManagerService {
   }
 
   public getLeaderboards(source: string = 'kw'): LeaderboardInfo[] {
-    return [
-      {
-        id: `${source}_top_hot`,
-        name: '官方热歌总榜',
-        source: source,
-        cover: '',
-        desc: '全网播放量与收藏量最高的热门歌曲',
-        list: [
-          {
-            id: 'top_1',
-            name: '晴天',
-            singer: '周杰伦',
-            album: '叶惠美',
-            source: 'wy',
-            duration: 269000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-            lrc: '[00:00.00]晴天 - 周杰伦\n[00:04.00]词：周杰伦 曲：周杰伦\n[00:15.00]故事的小黄花\n[00:20.00]从出生那年就飘着\n[00:25.00]童年的荡秋千'
-          },
-          {
-            id: 'top_2',
-            name: '起风了',
-            singer: '买辣椒也用券',
-            album: '起风了',
-            source: 'kg',
-            duration: 325000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-            lrc: '[00:00.00]起风了\n[00:05.00]从前初识这世间 万般流连'
-          },
-          {
-            id: 'top_3',
-            name: '七里香',
-            singer: '周杰伦',
-            album: '七里香',
-            source: 'tx',
-            duration: 299000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-            lrc: '[00:00.00]七里香 - 周杰伦\n[00:05.00]窗外的麻雀 在电线杆上多嘴'
-          },
-          {
-            id: 'top_4',
-            name: '稻香',
-            singer: '周杰伦',
-            album: '魔杰座',
-            source: 'wy',
-            duration: 223000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-            lrc: '[00:00.00]稻香 - 周杰伦\n[00:05.00]对这个世界如果你有太多的抱怨'
-          },
-          {
-            id: 'top_5',
-            name: '夜曲',
-            singer: '周杰伦',
-            album: '十一月的萧邦',
-            source: 'kw',
-            duration: 226000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-            lrc: '[00:00.00]夜曲 - 周杰伦\n[00:05.00]一群嗜血的蚂蚁 被腐肉所吸引'
-          }
-        ]
-      },
-      {
-        id: `${source}_top_surge`,
-        name: '飙升爆款榜',
-        source: source,
-        cover: '',
-        desc: '近期播放涨幅最快的新声力作',
-        list: [
-          {
-            id: 'surge_1',
-            name: '夜曲',
-            singer: '周杰伦',
-            album: '十一月的萧邦',
-            source: 'kw',
-            duration: 226000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-            lrc: '[00:00.00]夜曲 - 周杰伦\n[00:05.00]一群嗜血的蚂蚁 被腐肉所吸引'
-          },
-          {
-            id: 'surge_2',
-            name: '青花瓷',
-            singer: '周杰伦',
-            album: '我很忙',
-            source: 'wy',
-            duration: 239000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-            lrc: '[00:00.00]青花瓷 - 周杰伦\n[00:05.00]素胚勾勒出青花笔锋浓转淡'
-          }
-        ]
-      },
-      {
-        id: `${source}_top_new`,
-        name: '华语新歌先锋榜',
-        source: source,
-        cover: '',
-        desc: '精选本周全球华语最新首发单曲',
-        list: [
-          {
-            id: 'new_1',
-            name: '花海',
-            singer: '周杰伦',
-            album: '魔杰座',
-            source: 'mg',
-            duration: 264000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-            lrc: '[00:00.00]花海 - 周杰伦\n[00:05.00]静止了 所有的花开'
-          }
-        ]
-      }
-    ];
+    return [];
   }
 
   public getSongLists(source: string = 'kw', tag: string = 'hot'): SongListInfo[] {
-    return [
-      {
-        id: 'sl_1',
-        name: '周杰伦经典全集 (超清母带重置)',
-        cover: '',
-        playCount: '892.4万',
-        author: '洛雪官方精选',
-        desc: '陪伴青春的每一首旋律，无损音质全收录',
-        source: source,
-        list: [
-          {
-            id: 'sl_song_1',
-            name: '晴天',
-            singer: '周杰伦',
-            album: '叶惠美',
-            source: 'wy',
-            duration: 269000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-            lrc: '[00:00.00]晴天 - 周杰伦\n[00:04.00]故事的小黄花'
-          },
-          {
-            id: 'sl_song_2',
-            name: '七里香',
-            singer: '周杰伦',
-            album: '七里香',
-            source: 'wy',
-            duration: 299000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-            lrc: '[00:00.00]七里香 - 周杰伦\n[00:05.00]窗外的麻雀 在电线杆上多嘴'
-          },
-          {
-            id: 'sl_song_3',
-            name: '夜曲',
-            singer: '周杰伦',
-            album: '十一月的萧邦',
-            source: 'wy',
-            duration: 226000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-            lrc: '[00:00.00]夜曲 - 周杰伦\n[00:05.00]一群嗜血的蚂蚁'
-          },
-          {
-            id: 'sl_song_4',
-            name: '青花瓷',
-            singer: '周杰伦',
-            album: '我很忙',
-            source: 'wy',
-            duration: 239000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-            lrc: '[00:00.00]青花瓷 - 周杰伦\n[00:05.00]素胚勾勒出青花笔锋浓转淡'
-          }
-        ]
-      },
-      {
-        id: 'sl_2',
-        name: '夜间自习与沉浸专注白噪音',
-        cover: '',
-        playCount: '341.2万',
-        author: '心流电台',
-        desc: '深邃纯净的器乐交响，带你进入深度心流',
-        source: source,
-        list: [
-          {
-            id: 'sl_song_5',
-            name: '雨声与钢琴独白',
-            singer: '心流钢琴师',
-            album: '夜读随想',
-            source: 'kw',
-            duration: 310000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-            lrc: '[00:00.00]雨声与钢琴独白\n[00:10.00](静谧雨滴与琴声回荡)'
-          }
-        ]
-      },
-      {
-        id: 'sl_3',
-        name: '民谣小馆与吉他弹唱故事',
-        cover: '',
-        playCount: '198.7万',
-        author: '城市拾音人',
-        desc: '用木吉他的温度，抚平每一寸浮躁',
-        source: source,
-        list: [
-          {
-            id: 'sl_song_6',
-            name: '起风了',
-            singer: '买辣椒也用券',
-            album: '起风了',
-            source: 'kg',
-            duration: 325000,
-            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-            lrc: '[00:00.00]起风了\n[00:05.00]从前初识这世间 万般流连'
-          }
-        ]
-      }
-    ];
+    return [];
   }
 
   public async getMusicUrl(musicItem: MusicItem, quality: MusicQuality = this.defaultQuality): Promise<string> {
