@@ -40,3 +40,9 @@
 * 提交哈希：
   * `ef5ad59`: 初始化 Stage 架构与 README/LICENSE
   * `0e3cac3`: 实现歌词解析、播放引擎、持久化服务与 ArkUI 界面
+  * `21a9a6b`: 建立完整 doc/ 架构与 Agent 极速恢复手册
+
+### 5. DevEco Studio 26 构建与环境适配
+* **SDK 26 对齐**：修复 `build-profile.json5` 中的 `compileSdkVersion`、`compatibleSdkVersion`、`targetSdkVersion` 为 `"26.0.0"` 字符串格式。
+* **Hvigor 6.26 适配**：将 `hvigor-config.json5` 中插件版本对齐为 `@ohos/hvigor-ohos-plugin@6.26.4`，补充 `oh-package.json5` 与 `hvigorw` 脚本。
+* **HAP 任务流修正**：修正 `entry/hvigorfile.ts` 为 `hapTasks`，成功通过工程全量同步。
