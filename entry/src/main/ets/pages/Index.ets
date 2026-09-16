@@ -38,7 +38,7 @@ struct Index {
   @State isShowThemeModal: boolean = false;
 
   // 搜索相关状态 (多源 Tab & 热搜)
-  @State searchKeyword: string = '晴天';
+  @State searchKeyword: string = '周杰伦';
   @State searchSourceTab: string = 'all';
   @State searchResultList: MusicItem[] = [];
   @State isSearching: boolean = false;
@@ -198,46 +198,39 @@ struct Index {
         // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏
         if (this.curBreakpoint !== BreakpointConstants.BREAKPOINT_SM) {
           Column({ space: 14 }) {
-            // App 标头
             Row({ space: 6 }) {
               Text('🎵').fontSize(22)
               Text('洛雪音乐').fontSize(16).fontWeight(FontWeight.Bold).fontColor(this.themeColors.textPrimary)
             }
             .padding({ top: 20, bottom: 12 })
 
-            // 5 大导航菜单
             Column({ space: 6 }) {
               Button('🔍 搜索')
-                .width(110)
-                .height(40)
+                .width(110).height(40)
                 .backgroundColor(this.activeTabIndex === 0 ? this.themeColors.primaryLight : 'transparent')
                 .fontColor(this.activeTabIndex === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
                 .onClick(() => { this.activeTabIndex = 0; })
 
               Button('📑 歌单')
-                .width(110)
-                .height(40)
+                .width(110).height(40)
                 .backgroundColor(this.activeTabIndex === 1 ? this.themeColors.primaryLight : 'transparent')
                 .fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
                 .onClick(() => { this.activeTabIndex = 1; })
 
               Button('🏆 排行')
-                .width(110)
-                .height(40)
+                .width(110).height(40)
                 .backgroundColor(this.activeTabIndex === 2 ? this.themeColors.primaryLight : 'transparent')
                 .fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
                 .onClick(() => { this.activeTabIndex = 2; })
 
               Button('❤️ 我的')
-                .width(110)
-                .height(40)
+                .width(110).height(40)
                 .backgroundColor(this.activeTabIndex === 3 ? this.themeColors.primaryLight : 'transparent')
                 .fontColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
                 .onClick(() => { this.activeTabIndex = 3; })
 
               Button('⚙️ 设置')
-                .width(110)
-                .height(40)
+                .width(110).height(40)
                 .backgroundColor(this.activeTabIndex === 4 ? this.themeColors.primaryLight : 'transparent')
                 .fontColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
                 .onClick(() => { this.activeTabIndex = 4; })
@@ -245,7 +238,6 @@ struct Index {
 
             Blank()
 
-            // 快捷控制
             Row({ space: 8 }) {
               Button('🎛️').fontSize(14).width(36).height(36).backgroundColor(this.themeColors.cardBackground).onClick(() => { this.isShowEqualizerModal = true; })
               Button('🎨').fontSize(14).width(36).height(36).backgroundColor(this.themeColors.cardBackground).onClick(() => { this.isShowThemeModal = true; })
@@ -354,7 +346,7 @@ struct Index {
                           this.searchSourceTab = st.id;
                           this.performSearch();
                         })
-                    })
+                    }, (st: SourceTabItem) => st.id)
                   }
                   .padding({ left: 16, right: 16, top: 2, bottom: 6 })
                 }
@@ -377,7 +369,7 @@ struct Index {
                           this.searchKeyword = word;
                           this.performSearch();
                         })
-                    })
+                    }, (w: string) => w)
                   }
                   .padding({ left: 16, right: 16, bottom: 6 })
                 }
@@ -385,15 +377,16 @@ struct Index {
                 .scrollBar(BarState.Off)
                 .width('100%')
 
-                // 搜索结果列表
+                // 搜索结果列表 (带稳定 Key 与无跳动渲染)
                 if (this.isSearching) {
-                  Column({ space: 12 }) {
-                    LoadingProgress().width(40).height(40).color(this.themeColors.primary).margin({ top: 80 })
-                    Text('正在全网跨源搜索高品质音频...').fontSize(13).fontColor(this.themeColors.textSecondary)
+                  Row({ space: 8 }) {
+                    LoadingProgress().width(20).height(20).color(this.themeColors.primary)
+                    Text('正在跨多平台检索高保真音频...').fontSize(12).fontColor(this.themeColors.textSecondary)
                   }
-                  .width('100%')
-                  .layoutWeight(1)
-                } else if (this.searchResultList.length > 0) {
+                  .height(32)
+                }
+
+                if (this.searchResultList.length > 0) {
                   List() {
                     ForEach(this.searchResultList, (item: MusicItem) => {
                       ListItem() {
@@ -409,12 +402,12 @@ struct Index {
                           }
                         })
                       }
-                    })
+                    }, (item: MusicItem) => item.id)
                   }
                   .layoutWeight(1)
                   .width('100%')
                   .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
-                } else {
+                } else if (!this.isSearching) {
                   Column({ space: 8 }) {
                     Text('🔍').fontSize(40).margin({ top: 60 })
                     Text('输入歌名即刻开启全网多源检索').fontSize(14).fontColor(this.themeColors.textSecondary)
@@ -491,7 +484,7 @@ struct Index {
                         this.isShowSongListDetail = true;
                       })
                     }
-                  })
+                  }, (sl: SongListInfo) => sl.id)
                 }
                 .layoutWeight(1)
                 .width('100%')
@@ -517,7 +510,7 @@ struct Index {
                         .onClick(() => {
                           this.selectedLeaderboardIndex = idx;
                         })
-                    })
+                    }, (b: LeaderboardInfo) => b.id)
                   }
                   .padding({ left: 16, right: 16, top: 10, bottom: 8 })
                 }
@@ -531,7 +524,6 @@ struct Index {
                     ForEach(this.leaderboards[this.selectedLeaderboardIndex].list, (item: MusicItem, idx: number) => {
                       ListItem() {
                         Row() {
-                          // 排名徽章
                           Text(`${idx + 1}`)
                             .fontSize(16)
                             .fontWeight(FontWeight.Bold)
@@ -555,7 +547,7 @@ struct Index {
                         .width('100%')
                         .padding({ right: 16 })
                       }
-                    })
+                    }, (item: MusicItem) => item.id)
                   }
                   .layoutWeight(1)
                   .width('100%')
@@ -571,7 +563,6 @@ struct Index {
             // Tab 4: 我的 (MyList: 收藏 / 歌单 / 本地 / 下载)
             TabContent() {
               Column() {
-                // 二级分类 Segment
                 Row({ space: 6 }) {
                   Button(`收藏 (${this.myCollectionList.length})`)
                     .height(32).fontSize(12)
@@ -600,9 +591,7 @@ struct Index {
                 .width('100%')
                 .padding({ left: 16, right: 16, top: 12, bottom: 8 })
 
-                // 子视图呈现
                 if (this.myActiveSubTab === 0) {
-                  // 收藏
                   if (this.myCollectionList.length === 0) {
                     Column({ space: 8 }) {
                       Text('🎧').fontSize(44).margin({ top: 60 })
@@ -626,13 +615,12 @@ struct Index {
                             }
                           })
                         }
-                      })
+                      }, (item: MusicItem) => item.id)
                     }
                     .layoutWeight(1)
                     .width('100%')
                   }
                 } else if (this.myActiveSubTab === 1) {
-                  // 自建歌单
                   List({ space: 8 }) {
                     ForEach(this.customPlaylists, (pl: CustomPlaylist) => {
                       ListItem() {
@@ -662,12 +650,11 @@ struct Index {
                         .width('100%')
                         .padding({ left: 16, right: 16, top: 6, bottom: 6 })
                       }
-                    })
+                    }, (pl: CustomPlaylist) => pl.id)
                   }
                   .layoutWeight(1)
                   .width('100%')
                 } else if (this.myActiveSubTab === 2) {
-                  // 本地音乐
                   Column() {
                     Row() {
                       Text(`共 ${this.localMusicList.length} 首本地歌曲`).fontSize(13).fontColor(this.themeColors.textSecondary)
@@ -697,7 +684,7 @@ struct Index {
                             }
                           })
                         }
-                      })
+                      }, (item: MusicItem) => item.id)
                     }
                     .layoutWeight(1)
                     .width('100%')
@@ -706,7 +693,6 @@ struct Index {
                   .layoutWeight(1)
                   .width('100%')
                 } else {
-                  // 下载任务
                   List() {
                     ForEach(this.downloadTaskList, (task: DownloadTask) => {
                       ListItem() {
@@ -729,7 +715,7 @@ struct Index {
                         .width('100%')
                         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
                       }
-                    })
+                    }, (task: DownloadTask) => task.id)
                   }
                   .layoutWeight(1)
                   .width('100%')
@@ -1097,7 +1083,7 @@ struct Index {
             .width('100%')
             .padding({ top: 8, bottom: 8 })
           }
-        })
+        }, (src: UserSourceScriptInfo) => src.id)
       }
       .width('100%')
       .layoutWeight(1)
@@ -1275,7 +1261,7 @@ struct Index {
                 .fontSize(11)
                 .fontColor(this.themeColors.textSecondary)
             }
-          })
+          }, (p: ThemePreset) => p.id)
         }
         .width('100%')
         .justifyContent(FlexAlign.SpaceBetween)
