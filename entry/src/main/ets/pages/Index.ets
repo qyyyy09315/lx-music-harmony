@@ -10,18 +10,18 @@ import { DownloadManagerService, DownloadTask } from '../services/DownloadManage
 import { PlaylistManagerService, CustomPlaylist } from '../services/PlaylistManagerService';
 import { EqualizerService } from '../services/EqualizerService';
 import { BreakpointSystem, BreakpointType, BreakpointConstants } from '../common/BreakpointSystem';
-import { MusicItem, PlayMode, PlayState, UserSourceScriptInfo, SongListInfo, LeaderboardInfo, SourceTabItem } from '../model/MusicModel';
+import { MusicItem, PlayMode, PlayState, UserSourceScriptInfo, SourceTabItem } from '../model/MusicModel';
 import { MusicListItem } from '../view/MusicListItem';
 import { PlayDetailModal } from '../view/PlayDetailModal';
 import { EqualizerDialog } from '../view/EqualizerDialog';
 import { AddToPlaylistDialog } from '../view/AddToPlaylistDialog';
-import { SongListDetailDialog } from '../view/SongListDetailDialog';
+import { CustomPlaylistDetailDialog } from '../view/CustomPlaylistDetailDialog';
 import { LyricView } from '../view/LyricView';
 
 @Entry
 @Component
 struct Index {
-  @State activeTabIndex: number = 0; // 0: 搜索, 1: 歌单, 2: 排行榜, 3: 我的, 4: 设置
+  @State activeTabIndex: number = 0; // 0: 搜索, 1: 我的, 2: 设置
   @State currentMusic: MusicItem | null = null;
   @State playState: PlayState = PlayState.IDLE;
   @State currentTime: number = 0;
@@ -37,18 +37,12 @@ struct Index {
   @State currentThemeMode: ThemeMode = ThemeMode.LIGHT;
   @State isShowThemeModal: boolean = false;
 
-  // 搜索相关状态 (多源 Tab & 热搜)
-  @State searchKeyword: string = '周杰伦';
+  // 搜索相关状态 (对齐原作者 BlankView: 默认不预填关键词)
+  @State searchKeyword: string = '';
   @State searchSourceTab: string = 'all';
   @State searchResultList: MusicItem[] = [];
+  @State searchHistoryList: string[] = ['周杰伦', '晴天', '起风了'];
   @State isSearching: boolean = false;
-
-  // 歌单与排行榜大厅状态
-  @State songLists: SongListInfo[] = [];
-  @State selectedSongList: SongListInfo | null = null;
-  @State isShowSongListDetail: boolean = false;
-  @State leaderboards: LeaderboardInfo[] = [];
-  @State selectedLeaderboardIndex: number = 0;
 
   // 我的与自建歌单状态
   @State myActiveSubTab: number = 0; // 0: 收藏, 1: 歌单, 2: 本地, 3: 下载
@@ -56,13 +50,18 @@ struct Index {
   @State localMusicList: MusicItem[] = [];
   @State downloadTaskList: DownloadTask[] = [];
   @State customPlaylists: CustomPlaylist[] = [];
+  @State selectedPlaylistId: string = '';
+  @State isShowPlaylistDetail: boolean = false;
   @State isScanningLocal: boolean = false;
+  @State newPlaylistNameInput: string = '';
+  @State isShowCreatePlaylistInput: boolean = false;
 
   // 弹窗控制
   @State isShowPlayDetail: boolean = false;
   @State isShowSourceModal: boolean = false;
   @State isShowEqualizerModal: boolean = false;
   @State isShowSyncModal: boolean = false;
+  @State isShowAboutModal: boolean = false;
   @State isShowAddToPlaylistModal: boolean = false;
   @State targetMusicForPlaylist: MusicItem | null = null;
 
@@ -150,11 +149,6 @@ struct Index {
     this.localMusicList = this.localMusicService.getLocalMusicList();
     this.downloadTaskList = this.downloadService.getAllTasks();
     this.customPlaylists = this.plService.getAllPlaylists();
-    this.songLists = this.sourceService.getSongLists();
-    this.leaderboards = this.sourceService.getLeaderboards();
-
-    // 初始执行一次搜索
-    this.performSearch();
   }
 
   aboutToDisappear() {
@@ -171,10 +165,23 @@ struct Index {
   }
 
   private async performSearch() {
-    if (!this.searchKeyword.trim()) return;
+    if (!this.searchKeyword.trim()) {
+      this.searchResultList = [];
+      return;
+    }
+
+    const kw = this.searchKeyword.trim();
+    // 保存到历史搜索
+    if (!this.searchHistoryList.includes(kw)) {
+      this.searchHistoryList.unshift(kw);
+      if (this.searchHistoryList.length > 10) {
+        this.searchHistoryList.pop();
+      }
+    }
+
     this.isSearching = true;
     try {
-      const result = await this.sourceService.searchMusic(this.searchKeyword.trim(), this.searchSourceTab);
+      const result = await this.sourceService.searchMusic(kw, this.searchSourceTab);
       this.searchResultList = result.list;
     } catch (e) {
       console.error('Search error: ' + JSON.stringify(e));
@@ -195,7 +202,7 @@ struct Index {
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Row() {
-        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏 (原生高精度矢量图标)
+        // 大屏 / 平板 / 2in1 模式下的左侧 Navigation Rail 侧边栏 (三大核心功能)
         if (this.curBreakpoint !== BreakpointConstants.BREAKPOINT_SM) {
           Column({ space: 14 }) {
             Row({ space: 8 }) {
@@ -220,8 +227,8 @@ struct Index {
 
               Button({ type: ButtonType.Normal }) {
                 Row({ space: 8 }) {
-                  Image($r('app.media.ic_songlist')).width(16).height(16).fillColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  Text('歌单').fontSize(14).fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Image($r('app.media.ic_mine')).width(16).height(16).fillColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('我的').fontSize(14).fontColor(this.activeTabIndex === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
                 }
               }
               .width(110).height(40).borderRadius(8)
@@ -230,33 +237,13 @@ struct Index {
 
               Button({ type: ButtonType.Normal }) {
                 Row({ space: 8 }) {
-                  Image($r('app.media.ic_leaderboard')).width(16).height(16).fillColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  Text('排行').fontSize(14).fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Image($r('app.media.ic_setting')).width(16).height(16).fillColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  Text('设置').fontSize(14).fontColor(this.activeTabIndex === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
                 }
               }
               .width(110).height(40).borderRadius(8)
               .backgroundColor(this.activeTabIndex === 2 ? this.themeColors.primaryLight : 'transparent')
               .onClick(() => { this.activeTabIndex = 2; })
-
-              Button({ type: ButtonType.Normal }) {
-                Row({ space: 8 }) {
-                  Image($r('app.media.ic_mine')).width(16).height(16).fillColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  Text('我的').fontSize(14).fontColor(this.activeTabIndex === 3 ? this.themeColors.primary : this.themeColors.textSecondary)
-                }
-              }
-              .width(110).height(40).borderRadius(8)
-              .backgroundColor(this.activeTabIndex === 3 ? this.themeColors.primaryLight : 'transparent')
-              .onClick(() => { this.activeTabIndex = 3; })
-
-              Button({ type: ButtonType.Normal }) {
-                Row({ space: 8 }) {
-                  Image($r('app.media.ic_setting')).width(16).height(16).fillColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
-                  Text('设置').fontSize(14).fontColor(this.activeTabIndex === 4 ? this.themeColors.primary : this.themeColors.textSecondary)
-                }
-              }
-              .width(110).height(40).borderRadius(8)
-              .backgroundColor(this.activeTabIndex === 4 ? this.themeColors.primaryLight : 'transparent')
-              .onClick(() => { this.activeTabIndex = 4; })
             }
 
             Blank()
@@ -284,7 +271,7 @@ struct Index {
 
         // 主内容区
         Column() {
-          // 手机端顶部标题栏 (原生高精度矢量图标)
+          // 手机端顶部标题栏
           if (this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM) {
             Row() {
               Text('洛雪音乐')
@@ -329,7 +316,7 @@ struct Index {
             .backgroundColor(this.themeColors.background)
           }
 
-          // 全局悬浮歌词条 (纯文字发光胶囊)
+          // 全局悬浮歌词条
           if (this.isFloatLyricOn) {
             Row({ space: 8 }) {
               Image($r('app.media.ic_songlist'))
@@ -353,20 +340,25 @@ struct Index {
             .justifyContent(FlexAlign.Center)
           }
 
-          // 核心 5 大主功能 Tab 视图
+          // 核心 3 大主功能 Tab 视图
           Tabs({
             index: this.activeTabIndex,
             barPosition: this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? BarPosition.End : BarPosition.Start
           }) {
-            // Tab 1: 搜索 (多源过滤检索)
+            // Tab 1: 搜索 (多源过滤检索 + 经典 BlankView)
             TabContent() {
               Column() {
-                // 搜索框
+                // 搜索框 (支持清空与回车即搜)
                 Row({ space: 8 }) {
                   Search({ value: this.searchKeyword, placeholder: '搜索音乐、歌手、专辑' })
                     .layoutWeight(1)
                     .height(40)
-                    .onChange((val: string) => { this.searchKeyword = val; })
+                    .onChange((val: string) => {
+                      this.searchKeyword = val;
+                      if (!val.trim()) {
+                        this.searchResultList = [];
+                      }
+                    })
                     .onSubmit(() => { this.performSearch(); })
 
                   Button('搜索')
@@ -379,7 +371,7 @@ struct Index {
                 .width('94%')
                 .margin({ top: 6, bottom: 6 })
 
-                // 多源选择 Tab 胶囊栏 (KW / KG / TX / WY / MG / ALL)
+                // 多源选择 Tab 胶囊栏
                 Scroll() {
                   Row({ space: 8 }) {
                     ForEach(SourceManagerService.SOURCE_TABS, (st: SourceTabItem) => {
@@ -390,7 +382,9 @@ struct Index {
                         .fontColor(this.searchSourceTab === st.id ? this.themeColors.primary : this.themeColors.textSecondary)
                         .onClick(() => {
                           this.searchSourceTab = st.id;
-                          this.performSearch();
+                          if (this.searchKeyword.trim()) {
+                            this.performSearch();
+                          }
                         })
                     }, (st: SourceTabItem) => st.id)
                   }
@@ -400,30 +394,7 @@ struct Index {
                 .scrollBar(BarState.Off)
                 .width('100%')
 
-                // 热门搜索推荐词
-                Scroll() {
-                  Row({ space: 6 }) {
-                    Text('热搜:').fontSize(12).fontColor(this.themeColors.textSecondary)
-                    ForEach(SourceManagerService.HOT_SEARCH_WORDS, (word: string) => {
-                      Text(word)
-                        .fontSize(11)
-                        .fontColor(this.themeColors.primary)
-                        .backgroundColor(this.themeColors.primaryLight)
-                        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                        .borderRadius(10)
-                        .onClick(() => {
-                          this.searchKeyword = word;
-                          this.performSearch();
-                        })
-                    }, (w: string) => w)
-                  }
-                  .padding({ left: 16, right: 16, bottom: 6 })
-                }
-                .scrollable(ScrollDirection.Horizontal)
-                .scrollBar(BarState.Off)
-                .width('100%')
-
-                // 搜索结果列表 (纯文字排版，绝无缩略图与闪烁)
+                // 搜索结果呈现 或 经典 BlankView 空白首页
                 if (this.isSearching) {
                   Row({ space: 8 }) {
                     LoadingProgress().width(20).height(20).color(this.themeColors.primary)
@@ -433,6 +404,7 @@ struct Index {
                 }
 
                 if (this.searchResultList.length > 0) {
+                  // 有搜索结果：纯文字歌曲列表
                   List() {
                     ForEach(this.searchResultList, (item: MusicItem) => {
                       ListItem() {
@@ -453,17 +425,102 @@ struct Index {
                   .layoutWeight(1)
                   .width('100%')
                   .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
-                } else if (!this.isSearching) {
-                  Column({ space: 8 }) {
-                    Image($r('app.media.ic_search'))
-                      .width(40)
-                      .height(40)
-                      .fillColor(this.themeColors.textSecondary)
-                      .margin({ top: 60 })
-                    Text('输入歌名即刻开启全网多源检索').fontSize(14).fontColor(this.themeColors.textSecondary)
+                } else {
+                  // 无搜索输入时：原版经典 BlankView (热搜词 + 历史搜索 + 欢迎语)
+                  Scroll() {
+                    Column({ space: 16 }) {
+                      // 热门搜索词
+                      Column({ space: 8 }) {
+                        Text('热门搜索')
+                          .fontSize(13)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(this.themeColors.textSecondary)
+                          .alignSelf(ItemAlign.Start)
+
+                        Flex({ wrap: FlexWrap.Wrap }) {
+                          ForEach(SourceManagerService.HOT_SEARCH_WORDS, (word: string) => {
+                            Text(word)
+                              .fontSize(12)
+                              .fontColor(this.themeColors.textPrimary)
+                              .backgroundColor(this.themeColors.cardBackground)
+                              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                              .borderRadius(14)
+                              .margin({ right: 8, bottom: 8 })
+                              .onClick(() => {
+                                this.searchKeyword = word;
+                                this.performSearch();
+                              })
+                          }, (w: string) => w)
+                        }
+                      }
+                      .width('100%')
+
+                      // 历史搜索词
+                      if (this.searchHistoryList.length > 0) {
+                        Column({ space: 8 }) {
+                          Row() {
+                            Text('历史搜索')
+                              .fontSize(13)
+                              .fontWeight(FontWeight.Medium)
+                              .fontColor(this.themeColors.textSecondary)
+
+                            Blank()
+
+                            Button({ type: ButtonType.Normal }) {
+                              Row({ space: 4 }) {
+                                Image($r('app.media.ic_trash'))
+                                  .width(13)
+                                  .height(13)
+                                  .fillColor(this.themeColors.textSecondary)
+                                Text('清空').fontSize(11).fontColor(this.themeColors.textSecondary)
+                              }
+                            }
+                            .backgroundColor(Color.Transparent)
+                            .onClick(() => {
+                              this.searchHistoryList = [];
+                            })
+                          }
+                          .width('100%')
+
+                          Flex({ wrap: FlexWrap.Wrap }) {
+                            ForEach(this.searchHistoryList, (hWord: string) => {
+                              Text(hWord)
+                                .fontSize(12)
+                                .fontColor(this.themeColors.textPrimary)
+                                .backgroundColor(this.themeColors.cardBackground)
+                                .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                                .borderRadius(14)
+                                .margin({ right: 8, bottom: 8 })
+                                .onClick(() => {
+                                  this.searchKeyword = hWord;
+                                  this.performSearch();
+                                })
+                            }, (hw: string) => hw)
+                          }
+                        }
+                        .width('100%')
+                      }
+
+                      // 欢迎标语
+                      Column({ space: 6 }) {
+                        Image($r('app.media.ic_search'))
+                          .width(44)
+                          .height(44)
+                          .fillColor(this.themeColors.primaryLight)
+                          .margin({ top: 40 })
+
+                        Text('海量音乐 即搜即听')
+                          .fontSize(14)
+                          .fontColor(this.themeColors.textSecondary)
+                      }
+                      .width('100%')
+                      .alignItems(HorizontalAlign.Center)
+                    }
+                    .width('100%')
+                    .padding({ left: 20, right: 20, top: 12, bottom: 20 })
                   }
-                  .width('100%')
                   .layoutWeight(1)
+                  .width('100%')
                 }
               }
               .width('100%')
@@ -472,149 +529,7 @@ struct Index {
             }
             .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '搜索' : '')
 
-            // Tab 2: 歌单 (SongList 广场)
-            TabContent() {
-              Column() {
-                Row() {
-                  Text('精选歌单广场')
-                    .fontSize(18)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.themeColors.textPrimary)
-
-                  Blank()
-
-                  Text('热门标签 >')
-                    .fontSize(12)
-                    .fontColor(this.themeColors.textSecondary)
-                }
-                .width('100%')
-                .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-
-                // 歌单列表 (纯文字排版)
-                List({ space: 8 }) {
-                  ForEach(this.songLists, (sl: SongListInfo) => {
-                    ListItem() {
-                      Row() {
-                        Column({ space: 4 }) {
-                          Text(sl.name)
-                            .fontSize(15)
-                            .fontWeight(FontWeight.Bold)
-                            .fontColor(this.themeColors.textPrimary)
-                            .maxLines(1)
-                            .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-                          Text(sl.desc || '')
-                            .fontSize(12)
-                            .fontColor(this.themeColors.textSecondary)
-                            .maxLines(1)
-                            .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-                          Row({ space: 8 }) {
-                            Text(`播放量: ${sl.playCount}`)
-                              .fontSize(11)
-                              .fontColor(this.themeColors.primary)
-                            Text(`作者: ${sl.author}`)
-                              .fontSize(11)
-                              .fontColor(this.themeColors.textSecondary)
-                          }
-                        }
-                        .alignItems(HorizontalAlign.Start)
-                        .layoutWeight(1)
-
-                        Button({ type: ButtonType.Circle }) {
-                          Image($r('app.media.ic_play'))
-                            .width(14)
-                            .height(14)
-                            .fillColor(this.themeColors.primary)
-                        }
-                        .width(32).height(32)
-                        .backgroundColor(this.themeColors.primaryLight)
-                      }
-                      .width('100%')
-                      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-                      .onClick(() => {
-                        this.selectedSongList = sl;
-                        this.isShowSongListDetail = true;
-                      })
-                    }
-                  }, (sl: SongListInfo) => sl.id)
-                }
-                .layoutWeight(1)
-                .width('100%')
-                .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
-              }
-              .width('100%')
-              .height('100%')
-              .backgroundColor(this.themeColors.background)
-            }
-            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '歌单' : '')
-
-            // Tab 3: 排行榜 (Leaderboard)
-            TabContent() {
-              Column() {
-                // 榜单切换横向滑块
-                Scroll() {
-                  Row({ space: 8 }) {
-                    ForEach(this.leaderboards, (board: LeaderboardInfo, idx: number) => {
-                      Button(board.name)
-                        .height(32)
-                        .fontSize(13)
-                        .backgroundColor(this.selectedLeaderboardIndex === idx ? this.themeColors.primaryLight : this.themeColors.cardBackground)
-                        .fontColor(this.selectedLeaderboardIndex === idx ? this.themeColors.primary : this.themeColors.textSecondary)
-                        .onClick(() => {
-                          this.selectedLeaderboardIndex = idx;
-                        })
-                    }, (b: LeaderboardInfo) => b.id)
-                  }
-                  .padding({ left: 16, right: 16, top: 10, bottom: 8 })
-                }
-                .scrollable(ScrollDirection.Horizontal)
-                .scrollBar(BarState.Off)
-                .width('100%')
-
-                // 当前选中榜单的 Top 歌曲列表 (纯文字排版)
-                if (this.leaderboards.length > 0) {
-                  List() {
-                    ForEach(this.leaderboards[this.selectedLeaderboardIndex].list, (item: MusicItem, idx: number) => {
-                      ListItem() {
-                        Row() {
-                          Text(`${idx + 1}`)
-                            .fontSize(16)
-                            .fontWeight(FontWeight.Bold)
-                            .fontColor(idx === 0 ? '#FF3B30' : (idx === 1 ? '#FF9500' : (idx === 2 ? '#FFCC00' : this.themeColors.textSecondary)))
-                            .width(32)
-                            .textAlign(TextAlign.Center)
-
-                          MusicListItem({
-                            item: item,
-                            isPlaying: this.currentMusic?.id === item.id && this.playState === PlayState.PLAYING,
-                            onClickItem: () => {
-                              this.playerService.setPlayList(this.leaderboards[this.selectedLeaderboardIndex].list, idx);
-                            },
-                            onMoreClick: (it: MusicItem) => {
-                              this.targetMusicForPlaylist = it;
-                              this.isShowAddToPlaylistModal = true;
-                            }
-                          })
-                          .layoutWeight(1)
-                        }
-                        .width('100%')
-                        .padding({ right: 16 })
-                      }
-                    }, (item: MusicItem) => item.id)
-                  }
-                  .layoutWeight(1)
-                  .width('100%')
-                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 48 })
-                }
-              }
-              .width('100%')
-              .height('100%')
-              .backgroundColor(this.themeColors.background)
-            }
-            .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '排行榜' : '')
-
-            // Tab 4: 我的 (MyList: 收藏 / 歌单 / 本地 / 下载)
+            // Tab 2: 我的 (MyList: 真实收藏 / 自建歌单点击进详情 / 本地 / 下载)
             TabContent() {
               Column() {
                 Row({ space: 6 }) {
@@ -649,11 +564,10 @@ struct Index {
                   if (this.myCollectionList.length === 0) {
                     Column({ space: 8 }) {
                       Image($r('app.media.ic_mine'))
-                        .width(40)
-                        .height(40)
+                        .width(40).height(40)
                         .fillColor(this.themeColors.textSecondary)
                         .margin({ top: 60 })
-                      Text('暂无收藏歌曲').fontSize(14).fontColor(this.themeColors.textSecondary)
+                      Text('暂无收藏歌曲，搜索歌曲点击 ··· 即可收藏').fontSize(13).fontColor(this.themeColors.textSecondary)
                     }
                     .width('100%')
                     .layoutWeight(1)
@@ -680,37 +594,87 @@ struct Index {
                     .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                   }
                 } else if (this.myActiveSubTab === 1) {
-                  List({ space: 8 }) {
-                    ForEach(this.customPlaylists, (pl: CustomPlaylist) => {
-                      ListItem() {
-                        Row() {
-                          Column({ space: 4 }) {
-                            Text(pl.name).fontSize(15).fontWeight(FontWeight.Medium).fontColor(this.themeColors.textPrimary)
-                            Text(`${pl.list.length} 首歌曲 · ${pl.desc || '自建私享歌单'}`)
-                              .fontSize(12).fontColor(this.themeColors.textSecondary).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                          }
-                          .alignItems(HorizontalAlign.Start)
-                          .layoutWeight(1)
+                  // 自建歌单 (支持创建与点击进入歌单详情)
+                  Column() {
+                    Row() {
+                      Text(`全部歌单 (${this.customPlaylists.length})`).fontSize(13).fontColor(this.themeColors.textSecondary)
+                      Blank()
+                      Button(this.isShowCreatePlaylistInput ? '取消' : '+ 新建歌单')
+                        .fontSize(12)
+                        .height(28)
+                        .backgroundColor(this.themeColors.primaryLight)
+                        .fontColor(this.themeColors.primary)
+                        .onClick(() => {
+                          this.isShowCreatePlaylistInput = !this.isShowCreatePlaylistInput;
+                        })
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, bottom: 6 })
 
-                          Button('播放全部')
-                            .fontSize(12)
-                            .height(28)
+                    if (this.isShowCreatePlaylistInput) {
+                      Row({ space: 8 }) {
+                        TextInput({ placeholder: '输入新歌单名称...', text: this.newPlaylistNameInput })
+                          .layoutWeight(1)
+                          .height(38)
+                          .onChange((v: string) => { this.newPlaylistNameInput = v; })
+
+                        Button('确定')
+                          .fontSize(12)
+                          .height(38)
+                          .backgroundColor(this.themeColors.primary)
+                          .fontColor(Color.White)
+                          .onClick(() => {
+                            if (this.newPlaylistNameInput.trim()) {
+                              this.plService.createPlaylist(this.newPlaylistNameInput.trim());
+                              this.newPlaylistNameInput = '';
+                              this.isShowCreatePlaylistInput = false;
+                            }
+                          })
+                      }
+                      .width('92%')
+                      .padding({ bottom: 8 })
+                    }
+
+                    List({ space: 8 }) {
+                      ForEach(this.customPlaylists, (pl: CustomPlaylist) => {
+                        ListItem() {
+                          Row() {
+                            Column({ space: 4 }) {
+                              Text(pl.name).fontSize(15).fontWeight(FontWeight.Medium).fontColor(this.themeColors.textPrimary)
+                              Text(`${pl.list.length} 首歌曲 · ${pl.desc || '自建私享歌单'}`)
+                                .fontSize(12).fontColor(this.themeColors.textSecondary).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+                            }
+                            .alignItems(HorizontalAlign.Start)
+                            .layoutWeight(1)
+
+                            Button({ type: ButtonType.Circle }) {
+                              Image($r('app.media.ic_play'))
+                                .width(13).height(13).fillColor(this.themeColors.primary)
+                            }
+                            .width(32).height(32)
                             .backgroundColor(this.themeColors.primaryLight)
-                            .fontColor(this.themeColors.primary)
                             .onClick(() => {
                               if (pl.list.length > 0) {
                                 this.playerService.setPlayList(pl.list, 0);
                               }
                             })
+                          }
+                          .width('100%')
+                          .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+                          .onClick(() => {
+                            // 点击歌单，进入歌单详情弹窗！
+                            this.selectedPlaylistId = pl.id;
+                            this.isShowPlaylistDetail = true;
+                          })
                         }
-                        .width('100%')
-                        .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-                      }
-                    }, (pl: CustomPlaylist) => pl.id)
+                      }, (pl: CustomPlaylist) => pl.id)
+                    }
+                    .layoutWeight(1)
+                    .width('100%')
+                    .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                   }
                   .layoutWeight(1)
                   .width('100%')
-                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 16 })
                 } else if (this.myActiveSubTab === 2) {
                   Column() {
                     Row() {
@@ -785,10 +749,11 @@ struct Index {
             }
             .tabBar(this.curBreakpoint === BreakpointConstants.BREAKPOINT_SM ? '我的' : '')
 
-            // Tab 5: 设置 (Setting)
+            // Tab 3: 设置 (全功能可点进、无缝弹窗)
             TabContent() {
               Column() {
                 List() {
+                  // 1. 音效与均衡器
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -801,9 +766,12 @@ struct Index {
                     }
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                    .onClick(() => { this.isShowEqualizerModal = true; })
+                    .onClick(() => {
+                      this.isShowEqualizerModal = true;
+                    })
                   }
 
+                  // 2. 主题与配色
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -816,9 +784,12 @@ struct Index {
                     }
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                    .onClick(() => { this.isShowThemeModal = true; })
+                    .onClick(() => {
+                      this.isShowThemeModal = true;
+                    })
                   }
 
+                  // 3. 自定义音源
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -831,9 +802,12 @@ struct Index {
                     }
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                    .onClick(() => { this.isShowSourceModal = true; })
+                    .onClick(() => {
+                      this.isShowSourceModal = true;
+                    })
                   }
 
+                  // 4. 桌面悬浮歌词
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -853,6 +827,7 @@ struct Index {
                     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
                   }
 
+                  // 5. 多端数据同步
                   ListItem() {
                     Row() {
                       Column({ space: 4 }) {
@@ -867,17 +842,27 @@ struct Index {
                     }
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-                    .onClick(() => { this.isShowSyncModal = true; })
+                    .onClick(() => {
+                      this.isShowSyncModal = true;
+                    })
                   }
 
+                  // 6. 关于项目
                   ListItem() {
                     Row() {
-                      Text('关于项目').fontSize(15).fontColor(this.themeColors.textPrimary)
+                      Column({ space: 4 }) {
+                        Text('关于项目').fontSize(15).fontWeight(FontWeight.Medium).fontColor(this.themeColors.textPrimary)
+                        Text('v1.0.0 (HarmonyOS NEXT 26 纯血鸿蒙)').fontSize(12).fontColor(this.themeColors.textSecondary)
+                      }
+                      .alignItems(HorizontalAlign.Start)
                       Blank()
-                      Text('v1.0.0 (HarmonyOS NEXT 26)').fontSize(13).fontColor(this.themeColors.textSecondary)
+                      Text('查看 >').fontSize(13).fontColor(this.themeColors.primary)
                     }
                     .width('100%')
                     .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+                    .onClick(() => {
+                      this.isShowAboutModal = true;
+                    })
                   }
                 }
                 .width('100%')
@@ -1000,45 +985,51 @@ struct Index {
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeColors.background)
-    // 全屏播放器半模态
+    // 1. 全屏播放器半模态
     .bindSheet($$this.isShowPlayDetail, this.PlayDetailSheet(), {
       height: SheetSize.LARGE,
       showClose: false,
       dragBar: true
     })
-    // 歌单详情半模态
-    .bindSheet($$this.isShowSongListDetail, this.SongListDetailSheet(), {
+    // 2. 自建歌单详情半模态 (点击歌单即可查看)
+    .bindSheet($$this.isShowPlaylistDetail, this.PlaylistDetailSheet(), {
       height: SheetSize.LARGE,
       showClose: true,
       dragBar: true
     })
-    // 音源管理半模态
+    // 3. 音源管理半模态
     .bindSheet($$this.isShowSourceModal, this.SourceManageSheet(), {
       height: SheetSize.MEDIUM,
       showClose: true,
       dragBar: true
     })
-    // 多端同步配置半模态
+    // 4. 多端同步配置半模态
     .bindSheet($$this.isShowSyncModal, this.SyncManageSheet(), {
       height: 420,
       showClose: true,
       dragBar: true
     })
-    // 主题色彩设置半模态
+    // 5. 主题色彩设置半模态
     .bindSheet($$this.isShowThemeModal, this.ThemeManageSheet(), {
       height: 360,
       showClose: true,
       dragBar: true
     })
-    // 音效与均衡器设置半模态
+    // 6. 音效与均衡器设置半模态
     .bindSheet($$this.isShowEqualizerModal, this.EqualizerSheet(), {
       height: 440,
       showClose: true,
       dragBar: true
     })
-    // 添加到歌单半模态
+    // 7. 添加到歌单半模态
     .bindSheet($$this.isShowAddToPlaylistModal, this.AddToPlaylistSheet(), {
       height: 400,
+      showClose: true,
+      dragBar: true
+    })
+    // 8. 关于项目半模态
+    .bindSheet($$this.isShowAboutModal, this.AboutSheet(), {
+      height: 320,
       showClose: true,
       dragBar: true
     })
@@ -1059,11 +1050,11 @@ struct Index {
   }
 
   @Builder
-  SongListDetailSheet() {
-    SongListDetailDialog({
-      songListInfo: this.selectedSongList,
+  PlaylistDetailSheet() {
+    CustomPlaylistDetailDialog({
+      playlistId: this.selectedPlaylistId,
       onClose: () => {
-        this.isShowSongListDetail = false;
+        this.isShowPlaylistDetail = false;
       },
       onMoreClick: (it: MusicItem) => {
         this.targetMusicForPlaylist = it;
@@ -1183,7 +1174,6 @@ struct Index {
         .fontColor(this.themeColors.textPrimary)
         .margin({ top: 12, bottom: 4 })
 
-      // 服务器地址
       Column({ space: 4 }) {
         Text('服务器地址与端口')
           .fontSize(12)
@@ -1209,7 +1199,6 @@ struct Index {
       }
       .width('100%')
 
-      // 连接秘钥
       Column({ space: 4 }) {
         Text('连接密钥 (Auth Key)')
           .fontSize(12)
@@ -1226,7 +1215,6 @@ struct Index {
       }
       .width('100%')
 
-      // 同步操作按钮
       Row({ space: 12 }) {
         Button('测试连接')
           .layoutWeight(1)
@@ -1270,7 +1258,6 @@ struct Index {
         .fontColor(this.themeColors.textPrimary)
         .margin({ top: 12 })
 
-      // 明暗模式切换
       Row({ space: 12 }) {
         Button('浅色模式')
           .layoutWeight(1)
@@ -1294,7 +1281,6 @@ struct Index {
       }
       .width('100%')
 
-      // 主题色彩条
       Column({ space: 8 }) {
         Text('选择主色调')
           .fontSize(13)
@@ -1328,5 +1314,40 @@ struct Index {
     .height('100%')
     .padding({ left: 20, right: 20 })
     .backgroundColor(this.themeColors.background)
+  }
+
+  @Builder
+  AboutSheet() {
+    Column({ space: 12 }) {
+      Text('关于 洛雪音乐 (HarmonyOS NEXT)')
+        .fontSize(17)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.themeColors.textPrimary)
+        .margin({ top: 16, bottom: 4 })
+
+      Text('基于 lyswhut/lx-music-mobile 深度重构的原生纯血鸿蒙音乐客户端。')
+        .fontSize(13)
+        .fontColor(this.themeColors.textSecondary)
+        .textAlign(TextAlign.Center)
+        .width('90%')
+
+      Text('特别致谢原作者 @lyswhut 提供的优秀架构设计理念。\n本软件不内置任何音源，完全遵循开源社区 Apache-2.0 规范。')
+        .fontSize(12)
+        .fontColor(this.themeColors.textSecondary)
+        .textAlign(TextAlign.Center)
+        .width('90%')
+
+      Blank()
+
+      Text('v1.0.0 · API 12+ / 26 Release')
+        .fontSize(11)
+        .fontColor(this.themeColors.primary)
+        .padding({ bottom: 16 })
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 20, right: 20 })
+    .backgroundColor(this.themeColors.background)
+    .alignItems(HorizontalAlign.Center)
   }
 }
