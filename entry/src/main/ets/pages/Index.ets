@@ -4,6 +4,8 @@ import { SourceManagerService } from '../services/SourceManagerService';
 import { FloatLyricService } from '../services/FloatLyricService';
 import { SyncService, SyncConnectionState, SyncReport } from '../services/SyncService';
 import { ThemeService, ThemeMode, ThemeColorSet, ThemePreset } from '../services/ThemeService';
+import { LocalMusicService } from '../services/LocalMusicService';
+import { DownloadManagerService, DownloadTask } from '../services/DownloadManagerService';
 import { MusicItem, PlayMode, PlayState, UserSourceScriptInfo } from '../model/MusicModel';
 import { MusicListItem } from '../view/MusicListItem';
 import { PlayDetailModal } from '../view/PlayDetailModal';
@@ -61,6 +63,11 @@ struct Index {
   ];
 
   @State myCollectionList: MusicItem[] = [];
+  @State localMusicList: MusicItem[] = [];
+  @State downloadTaskList: DownloadTask[] = [];
+  @State myActiveSubTab: number = 0; // 0: 收藏, 1: 本地, 2: 下载
+  @State isScanningLocal: boolean = false;
+
   @State isShowPlayDetail: boolean = false;
 
   // 搜索相关状态
@@ -90,6 +97,8 @@ struct Index {
   private floatLyricService: FloatLyricService = FloatLyricService.getInstance();
   private syncService: SyncService = SyncService.getInstance();
   private themeService: ThemeService = ThemeService.getInstance();
+  private localMusicService: LocalMusicService = LocalMusicService.getInstance();
+  private downloadService: DownloadManagerService = DownloadManagerService.getInstance();
 
   aboutToAppear() {
     this.storageService.init(getContext(this));
@@ -125,6 +134,14 @@ struct Index {
       this.themeColors = colors;
     });
 
+    this.localMusicService.onListChange((list: MusicItem[]) => {
+      this.localMusicList = [...list];
+    });
+
+    this.downloadService.onTasksChange((tasks: DownloadTask[]) => {
+      this.downloadTaskList = [...tasks];
+    });
+
     const cfg = this.syncService.getConfig();
     this.syncHost = cfg.host;
     this.syncPort = cfg.port;
@@ -132,6 +149,8 @@ struct Index {
 
     this.loadCollections();
     this.loadSources();
+    this.localMusicList = this.localMusicService.getLocalMusicList();
+    this.downloadTaskList = this.downloadService.getAllTasks();
   }
 
   private async loadCollections() {
@@ -153,6 +172,15 @@ struct Index {
       console.error('Search error: ' + JSON.stringify(e));
     } finally {
       this.isSearching = false;
+    }
+  }
+
+  private async handleScanLocal() {
+    this.isScanningLocal = true;
+    try {
+      this.localMusicList = await this.localMusicService.scanLocalAudio();
+    } finally {
+      this.isScanningLocal = false;
     }
   }
 
@@ -199,7 +227,7 @@ struct Index {
         .alignItems(VerticalAlign.Center)
         .backgroundColor(this.themeColors.background)
 
-        // 全局悬浮歌词胶囊条 (开启悬浮歌词时显示)
+        // 全局悬浮歌词胶囊条
         if (this.isFloatLyricOn) {
           Row({ space: 8 }) {
             Text('🎵')
@@ -268,46 +296,132 @@ struct Index {
           }
           .tabBar('发现')
 
-          // Tab 2: 我的
+          // Tab 2: 我的 (收藏 / 本地音乐 / 下载管理)
           TabContent() {
             Column() {
-              Row() {
-                Text('我的收藏')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.themeColors.textPrimary)
-
-                Blank()
-
-                Text(`${this.myCollectionList.length} 首`)
+              // 我的二级分类 Segment
+              Row({ space: 8 }) {
+                Button(`收藏 (${this.myCollectionList.length})`)
+                  .height(32)
                   .fontSize(13)
-                  .fontColor(this.themeColors.textSecondary)
+                  .backgroundColor(this.myActiveSubTab === 0 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                  .fontColor(this.myActiveSubTab === 0 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  .onClick(() => { this.myActiveSubTab = 0; })
+
+                Button(`本地音乐 (${this.localMusicList.length})`)
+                  .height(32)
+                  .fontSize(13)
+                  .backgroundColor(this.myActiveSubTab === 1 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                  .fontColor(this.myActiveSubTab === 1 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  .onClick(() => { this.myActiveSubTab = 1; })
+
+                Button(`下载 (${this.downloadTaskList.length})`)
+                  .height(32)
+                  .fontSize(13)
+                  .backgroundColor(this.myActiveSubTab === 2 ? this.themeColors.primaryLight : this.themeColors.cardBackground)
+                  .fontColor(this.myActiveSubTab === 2 ? this.themeColors.primary : this.themeColors.textSecondary)
+                  .onClick(() => { this.myActiveSubTab = 2; })
               }
               .width('100%')
-              .padding({ left: 16, right: 16, top: 16, bottom: 12 })
+              .padding({ left: 16, right: 16, top: 12, bottom: 8 })
 
-              if (this.myCollectionList.length === 0) {
-                Column({ space: 8 }) {
-                  Text('🎧')
-                    .fontSize(44)
-                    .margin({ top: 60 })
-                  Text('暂无收藏歌曲')
-                    .fontSize(14)
-                    .fontColor(this.themeColors.textSecondary)
+              // 列表视图呈现
+              if (this.myActiveSubTab === 0) {
+                // 收藏列表
+                if (this.myCollectionList.length === 0) {
+                  Column({ space: 8 }) {
+                    Text('🎧')
+                      .fontSize(44)
+                      .margin({ top: 60 })
+                    Text('暂无收藏歌曲')
+                      .fontSize(14)
+                      .fontColor(this.themeColors.textSecondary)
+                  }
+                  .width('100%')
+                  .layoutWeight(1)
+                } else {
+                  List() {
+                    ForEach(this.myCollectionList, (item: MusicItem) => {
+                      ListItem() {
+                        MusicListItem({
+                          item: item,
+                          isPlaying: this.currentMusic?.id === item.id,
+                          onClickItem: () => {
+                            this.playerService.setPlayList(this.myCollectionList, this.myCollectionList.indexOf(item));
+                          }
+                        })
+                      }
+                    })
+                  }
+                  .layoutWeight(1)
+                  .width('100%')
                 }
-                .width('100%')
-                .layoutWeight(1)
-              } else {
-                List() {
-                  ForEach(this.myCollectionList, (item: MusicItem) => {
-                    ListItem() {
-                      MusicListItem({
-                        item: item,
-                        isPlaying: this.currentMusic?.id === item.id,
-                        onClickItem: () => {
-                          this.playerService.setPlayList(this.myCollectionList, this.myCollectionList.indexOf(item));
-                        }
+              } else if (this.myActiveSubTab === 1) {
+                // 本地音乐列表
+                Column() {
+                  Row() {
+                    Text(`共 ${this.localMusicList.length} 首本地歌曲`)
+                      .fontSize(13)
+                      .fontColor(this.themeColors.textSecondary)
+                    Blank()
+                    Button(this.isScanningLocal ? '扫描中...' : '一键扫描曲库')
+                      .fontSize(12)
+                      .height(28)
+                      .backgroundColor(this.themeColors.primaryLight)
+                      .fontColor(this.themeColors.primary)
+                      .onClick(() => {
+                        this.handleScanLocal();
                       })
+                  }
+                  .width('100%')
+                  .padding({ left: 16, right: 16, bottom: 8 })
+
+                  List() {
+                    ForEach(this.localMusicList, (item: MusicItem) => {
+                      ListItem() {
+                        MusicListItem({
+                          item: item,
+                          isPlaying: this.currentMusic?.id === item.id,
+                          onClickItem: () => {
+                            this.playerService.setPlayList(this.localMusicList, this.localMusicList.indexOf(item));
+                          }
+                        })
+                      }
+                    })
+                  }
+                  .layoutWeight(1)
+                  .width('100%')
+                  .divider({ strokeWidth: 0.5, color: this.themeColors.divider, startMargin: 72 })
+                }
+                .layoutWeight(1)
+                .width('100%')
+              } else {
+                // 下载任务管理
+                List() {
+                  ForEach(this.downloadTaskList, (task: DownloadTask) => {
+                    ListItem() {
+                      Row() {
+                        Column({ space: 4 }) {
+                          Text(task.musicItem.name)
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Medium)
+                            .fontColor(this.themeColors.textPrimary)
+                          Text(`${task.musicItem.singer} · ${task.quality.toUpperCase()} · 进度: ${task.progress}%`)
+                            .fontSize(11)
+                            .fontColor(this.themeColors.textSecondary)
+                        }
+                        .alignItems(HorizontalAlign.Start)
+                        .layoutWeight(1)
+
+                        Text(task.status === 'completed' ? '已完成' : '下载中')
+                          .fontSize(12)
+                          .fontColor(task.status === 'completed' ? this.themeColors.primary : '#FF9900')
+                          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                          .backgroundColor(this.themeColors.primaryLight)
+                          .borderRadius(4)
+                      }
+                      .width('100%')
+                      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
                     }
                   })
                 }
