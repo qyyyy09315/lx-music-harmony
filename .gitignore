@@ -1,0 +1,24 @@
+# HarmonyOS / DevEco Studio
+.hvigor/
+.idea/
+build/
+entry/build/
+entry/.cxx/
+entry/.preview/
+*.hsp
+*.har
+*.hap
+*.app
+oh_modules/
+node_modules/
+dist/
+
+# Local & OS Files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# Upstream reference workspace
+upstream_lx_music_mobile/

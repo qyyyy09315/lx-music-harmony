@@ -1,0 +1,24 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "洛雪音乐鸿蒙客户端主模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "洛雪音乐"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "洛雪音乐"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "用于在线搜索、获取歌单与网络音频流播放"
+    },
+    {
+      "name": "permission_background_reason",
+      "value": "用于后台持续播放音乐与播控服务"
+    }
+  ]
+}
